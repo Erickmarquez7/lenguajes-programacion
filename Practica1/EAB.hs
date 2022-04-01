@@ -6,7 +6,7 @@ module EAB where
 -----------------------------------------------------------
 --Integrantes:                                           --
 --1. Bernal Márquez Erick                                --
---2. Deloya Andrade Ana Valeria                                            -- 
+--2. Deloya Andrade Ana Valeria                          -- 
 --3. Villegas Barrón César                               --
 -----------------------------------------------------------
 
@@ -31,7 +31,7 @@ data EAB = Var String
         |  If EAB EAB EAB
         |  Let EAB EAB
         |  Abs String EAB deriving (Show,Eq) 
- 
+         
 --------------------------------
 --     Semántica Dinámica     --
 --------------------------------
@@ -56,7 +56,6 @@ fv (If e e1 e2) = fv e ++ fv e1 ++ fv e2
 fv (Let e1 e2) = fv e1 ++ fv e2
 fv (Abs z e) = filter (/= z) (fv e) 
 
-
 --Definimos la función auxiliar "subs" que se utilizará para la evaluación de expresiones que usan alguna abstracción (Let, MatchNat etc.)
 type Subst = (String,EAB) -- este type representa la sustitución de la forma "[x:=r]"
 
@@ -77,71 +76,123 @@ subs (Not e) s = Not (subs e s)
 subs (Iszero e) s = Iszero (subs e s)
 subs (If e e1 e2) s = If (subs e s) (subs e1 s) (subs e2 s)
 subs (Let e1 e2) s = Let (subs e1 s) (subs e2 s)
-subs (Abs z e) s@(x,r) = if z==x 
-                         then error "se hará la sustitución de una variable ligada, busca una alfa equivalencia de tu expresión" 
-                         else Abs z (subs e s)
-
+subs (Abs z e) (x,r) | z==x          = error "se hará una sustitución en una variable ligada "
+                     | z `elem` fv r = error "la expresion a sustituir tiene una variable con el mismo nombre que una ligada" 
+                     | otherwise     = Abs z (subs e (x,r))
 
 --Con las funciones auxiliares "fv" y "subs" ya podemos definir el intérprete "eval1" de la siguiente manera:
+
 eval1 :: EAB -> EAB
 -- Variable
-eval1 (Var x) = Var "x"
+eval1 (Var x) = error "no se pueden evaluar expresiones con variables libres"
 -- Número
 eval1 (Num n) = Num n
 -- Booleano
 eval1 (B b) = B b
 -- Suma
 eval1 (Sum (Num n) (Num m)) = Num (n+m)
+eval1 (Sum (B b) (Num n)) = Sum (B b) (Num n)
+eval1 (Sum (Num n) (B b)) = Sum (Num n) (B b)
+eval1 (Sum (B b) (B c)) = Sum (B b) (B c)
 eval1 (Sum (Num n) e2) = Sum (Num n) (eval1 e2)
+eval1 (Sum (B b) e2) = Sum (B b) (eval1 e2)
 eval1 (Sum e1 e2) = Sum (eval1 e1) e2
 -- Producto
 eval1 (Prod (Num n) (Num m)) = Num (n*m)
+eval1 (Prod (B b) (Num n)) = Prod (B b) (Num n)
+eval1 (Prod (Num n) (B b)) = Prod (Num n) (B b)
+eval1 (Prod (B b) (B c)) = Prod (B b) (B c)
 eval1 (Prod (Num n) e2) = Prod (Num n) (eval1 e2)
+eval1 (Prod (B b) e2) = Prod (B b) (eval1 e2)
 eval1 (Prod e1 e2) = Prod (eval1 e1) e2
 -- Inverso aditivo
 eval1 (Neg (Num n)) = Num (-1*n)
+eval1 (Neg (B b)) = Neg (B b)
 eval1 (Neg e) = Neg (eval1 e)
 -- Predecesor
 eval1 (Pred (Num n)) = Num (n-1)
+eval1 (Pred (B b)) = Pred (B b)
 eval1 (Pred e) = Pred (eval1 e)
 -- Sucesor        
 eval1 (Suc (Num n)) = Num (n+1)
+eval1 (Suc (B b)) = Suc (B b)
 eval1 (Suc e) = Suc (eval1 e)
 -- Conjunción
 eval1 (And (B True) (B True)) = B True
-eval1 (And (B True) (B False)) = B False
-eval1 (And (B False) (B True)) = B False
-eval1 (And (B False) (B False)) = B False
+eval1 (And (B False) (B b)) = B False
+eval1 (And (B b) (B False)) = B False
+eval1 (And (B b) (Num n)) = And (B b) (Num n)
 eval1 (And (B b) e2) = And (B b) (eval1 e2)
+eval1 (And (Num n) (B b)) = And (Num n) (B b)
+eval1 (And (Num n) (Num m)) = And (Num n) (Num m)
+eval1 (And (Num n) e2) = And (Num n) (eval1 e2)  
 eval1 (And e1 e2) = And (eval1 e1) e2
 -- Disyunción 
-eval1 (Or (B True) (B True)) = B True
-eval1 (Or (B True) (B False)) = B True
-eval1 (Or (B False) (B True)) = B True
+eval1 (Or (B True) (B b)) = B True
+eval1 (Or (B b) (B True)) = B True
 eval1 (Or (B False) (B False)) = B False
+eval1 (Or (B b) (Num n)) = Or (B b) (Num n)
 eval1 (Or (B b) e2) = Or (B b) (eval1 e2)
+eval1 (Or (Num n) (B b)) = Or (Num n) (B b)
+eval1 (Or (Num n) (Num m)) = Or (Num n) (Num m)
+eval1 (Or (Num n) e2) = Or (Num n) (eval1 e2)
 eval1 (Or e1 e2) = Or (eval1 e1) e2
 -- Negación
 eval1 (Not (B False)) = B True
 eval1 (Not (B True)) = B False
+eval1 (Not (Num n)) = Not (Num n)
 eval1 (Not e) = Not (eval1 e)
 -- Verificador del número 0
 eval1 (Iszero (Num 0)) = B True
-eval1 (Iszero (Num n)) = B False  
-eval1 (Iszero e) =  Iszero (eval1 e)        
+eval1 (Iszero (Num n)) = B False
+eval1 (Iszero (B b)) = Iszero (B b)
+eval1 (Iszero e) = Iszero (eval1 e)
 -- If ternario
 eval1 (If (B True) e1 e2) = e1 
 eval1 (If (B False) e1 e2) = e2
+eval1 (If (Num n) e1 e2) = If (Num n) e1 e2
 eval1 (If e e1 e2) = If (eval1 e) e1 e2 
 -- Let binario
-eval1 (Let e1 e2) = error "Implementar"
--- Abstracción
-eval1 (Abs x e) = error "Implementar"
+eval1 (Let (B b) (Abs x e2)) = subs e2 (x, B b)
+eval1 (Let (Num n) (Abs x e2)) = subs e2 (x, Num n)
+eval1 (Let e1  (Abs x e2)) = Let (eval1 e1) (Abs x e2)
+
+eval1 e = error "eval1 - adiós warning Pattern match(es) are non-exhaustive :)"
 
 --2 Implementar la función evals :: EAB -> EAB tal que evals e e’ syss e ->* e’ y e’ está bloqueado.
-
 evals :: EAB -> EAB
-evals _ = error "Implementar"
+-- Variable
+evals (Var x) = eval1 (Var x)
+-- Número
+evals (Num n) = eval1 (Num n)
+-- Booleano
+evals (B b) = eval1 (B b)
+-- Suma
+evals (Sum e1 e2) = eval1 (Sum (evals e1) (evals e2))
+-- Producto
+evals (Prod e1 e2) = eval1 (Prod (evals e1) (evals e2))
+-- Inverso aditivo
+evals (Neg e) = eval1 (Neg (evals e))
+-- Predecesor
+evals (Pred e) = eval1 (Pred (evals e))  
+-- Sucesor                                                              
+evals (Suc e) = eval1 (Suc (evals e)) 
+-- Conjunción
+evals (And e1 e2) = eval1 (And (evals e1) (evals e2))
+-- Disyunción                                              
+evals (Or e1 e2) = eval1 (Or (evals e1) (evals e2))
+-- Negación
+evals (Not e) = eval1 (Not (eval1 e))
+-- Verificador del número 0
+evals (Iszero e) = eval1 (Iszero (evals e))
+-- If ternario
+evals (If e e1 e2) = eval1 (If (evals e) (evals e1) (evals e2))
+-- Let binario
+evals (Let (Num n) (Abs x e2)) = evals (eval1 (Let (Num n) (Abs x e2)))
+evals (Let (B b) (Abs x e2)) = evals (eval1 (Let (B b) (Abs x e2)))
+evals (Let e1 (Abs x e2)) = eval1 (Let (evals e1) (Abs x e2))
+
+evals e = error "evals - adiós warning 'Pattern match(es) are non-exhaustive' :)"
 
 --3 Implementar la función eval :: EAB -> EAB tal que eval e = e’syss e ->* e’ y e’ es un valor. 
 --La diferencia con evals es que deben manejarse los errores de ejecución.
@@ -189,7 +240,6 @@ q = Prod (Num 5) (Num 2)
 r :: EAB
 r = Sum (Sum (Num 3) (Num 4)) (Num 5)
 
-
 -- Resolver a la derecha suponiendo que ya tengamos resuelto la izquierda
 s :: EAB
 s = Sum (Num 5) (Sum (Num 3) (Num 4))
@@ -210,6 +260,11 @@ b4 = And (B False) b1
 
 b5 :: EAB
 b5 = And b1 b2
+
+--Probando el Let
+let1 :: EAB
+let1 = Let (Num 4) (Abs "z" (Sum (Var "z") (Num 1))) -- let z = 4 in z + 1 o let(4,z.z+1)
+
 -- El caso para la conjunción es analogo
 -- data EAB = Var String
 --         |  Num Int
