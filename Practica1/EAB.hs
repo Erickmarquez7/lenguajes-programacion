@@ -184,7 +184,7 @@ eval1 (Lt (B b) e2 ) = Lt (B b) (eval1 e2) --Término que será bloqueado
 eval1 (Lt (Num n) e2 ) = Lt (Num n) (eval1 e2)
 eval1 (Lt e1 e2 ) = Lt (eval1 e1) e2 
 
-eval1 e = error "¡eval1!, algo salió mal D:, revisa que tu expresión esté correcta"
+eval1 e = error "¡eval1!, algo salió mal D:"
 
 --2 Implementar la función evals :: EAB -> EAB tal que evals e e’ syss e ->* e’ y e’ está bloqueado.
 evals :: EAB -> EAB
@@ -288,7 +288,7 @@ eval (Lt (B b) _) = error "El primer argumento de un Lt (menor que) debe ser un 
 eval (Lt _ (B b)) = error "El segundo argumento de un Lt (menor que) debe ser un número"
 eval (Lt e1 e2) = eval1 (Lt (eval e1) (eval e2))
 
-eval e = error "¡eval!, algo salió mal D:, revisa que tu expresión esté correcta"
+eval e = error "¡eval!, algo salió mal D:"
 
 
 --------------------------------
@@ -307,15 +307,16 @@ type Ctx = [(String,Type)]
 --    [], exp, Num o Varvt :: Ctx -> EAB -> Type -> Bool
 
 vt :: Ctx -> EAB -> Type -> Bool
---vt [_,("x",a)] (Var "x") a = True --(tvar)
 -- Casos base
+vt g (Var y) t | (y,t) `elem` g = True --(tvar)
+               | otherwise  = False 
 vt _ (Num n) TNum = True --(tnum)
 vt _ (Num n) TBool = False --Error de tipado
 vt _ (B True) TBool = True --(ttrue)
 vt _ (B False) TBool = True --(tfalse)
 vt _ (B True) TNum = False --Error de tipado
 vt _ (B False) TNum = False --Error de tipado
-
+-- Casos con recursión
 vt g (Sum e1 e2) TNum = vt g e1 TNum && vt g e2 TNum --(tsum)
 vt g (Sum e1 e2) TBool = False --Error de tipado
 vt g (Prod e1 e2) TNum = vt g e1 TNum && vt g e2 TNum --(tprod)
@@ -335,80 +336,113 @@ vt g (Not e) TNum = False --Error de tipado
 vt g (Iszero e) TBool = vt g e TNum --(tisz)
 vt g (Iszero e) TNum = False --Error de tipado
 vt g (If e1 e2 e3) t = vt g e1 TBool && vt g e2 t && vt g e3 t --(tif)
-vt g (Let e1 (Abs x e2)) s = vt g e1 TNum && (vt (g++[("x",TNum)]) e2 s || (vt g e1 TBool && vt (g++[("x",TBool)]) e2 s))
+vt g (Let e1 (Abs x e2)) TNum | vt g e1 TNum && vt (g++[(x,TNum)]) e2 TNum   = True 
+                              | vt g e1 TBool && vt (g++[(x,TBool)]) e2 TNum = True
+                              | otherwise                                    = False  
+vt g (Let e1 (Abs x e2)) TBool | vt g e1 TNum && vt (g++[(x,TNum)]) e2 TBool   = True 
+                               | vt g e1 TBool && vt (g++[(x,TBool)]) e2 TBool = True
+                               | otherwise                                     = False  
+--MatchNat ternario - Ejercicio extra
+vt g (MatchNat e1 a1 (Abs x a2)) TNum  | vt g e1 TNum && vt (g++[(x,TNum)]) a2 TNum = True 
+                                       | otherwise                                  = False
+vt g (MatchNat e1 a1 (Abs x a2)) TBool | vt g e1 TNum && vt (g++[(x,TNum)]) a2 TBool = True 
+                                       | otherwise                                   = False                                        
+--Gt (mayor que) -- Ejercicio extra 
+vt g (Gt e1 e2) TBool = vt g e1 TNum && vt g e2 TNum
+vt g (Gt e1 e2) TNum = False
+--Lt (menor que) -- Ejercicio extra
+vt g (Lt e1 e2) TBool = vt g e1 TNum && vt g e2 TNum
+vt g (Lt e1 e2) TNum = False
 
-
---vt g (Abs s) = 
--- data EAB = Var String
---         |  Num Int
---         |  B Bool   
---         |  Sum EAB EAB
---         |  Prod EAB EAB
---         |  Neg EAB
---         |  Pred EAB
---         |  Suc EAB
---         |  And EAB EAB
---         |  Or EAB EAB
---         |  Not EAB
---         |  Iszero EAB
---         |  If EAB EAB EAB
---         |  Let EAB EAB
---         |  Abs String EAB deriving (Show,Eq)
-
---vt _ (Sum (Num n) e) TNum = (vt _ (Num n) TNum) && (vt _ e TNum) --(tsum)
---vt _ Prod(e1 e2) TNum = (vt _ e1 TNum) &&  
---vt _ (Prod (Num n) (Num m)) TNum = True
-
-vt e1 e2 e3 = error "a?"
-
-
-
-sum' :: EAB
-sum' = Sum (Num 3) (Num 3)
+vt e1 e2 e3 = error "¡vt!, algo salió mal D:"
 
 --3. Implementar la función de evaluación evalt :: EAB → EAB que es esencialmente una reimplementación de la función eval de forma que evalt verifique el tipado de la expresión y sólo en caso positivo inicie el proceso de evaluación. En otro caso debe informarse de un error por existencia de variables libres o por tipado.
-
 evalt :: EAB -> EAB
-evalt _ = error "Implementar"
+-- Variable
+evalt (Var x) = eval (Var x)
+-- Número
+evalt (Num n) = eval (Num n)
+-- Booleano
+evalt (B b) = eval (B b)
+-- Suma
+evalt (Sum e1 e2) = if vt [] (Sum e1 e2) TNum then eval (Sum e1 e2) else error "Error de tipado: verifique su suma (Sum)"
+-- Producto
+evalt (Prod e1 e2) = if vt [] (Prod e1 e2) TNum then eval (Prod e1 e2) else error "Error de tipado: verifique su producto (Prod)"
+-- Inverso aditivo
+evalt (Neg e) = if vt [] e TNum then eval (Neg e) else error "Error de tipado: verifique su inverso aditivo (Neg)"
+-- Predecesor
+evalt (Pred e) = if vt [] e TNum then eval (Pred e) else error "Error de tipado: verifique su función predecesor (Pred)"
+-- Sucesor
+evalt (Suc e) = if vt [] e TNum then eval (Suc e) else error "Error de tipado: verifique su función sucesor (Suc)"
+-- Conjunción
+evalt (And e1 e2) = if vt [] (And e1 e2) TBool then eval (And e1 e2) else error "Error de tipado: verifique su conjunción (And)"
+-- Disyunción 
+evalt (Or e1 e2) = if vt [] (Or e1 e2) TBool then eval (Or e1 e2) else error "Error de tipado: verifique su disyunción (Or)"
+-- Negación
+evalt (Not e) = if vt [] (Not e) TBool then eval (Not e) else error "Error de tipado: verifique su negación (Not)"
+-- Verificador del número 0
+evalt (Iszero e) = if vt [] (Iszero e) TBool then eval (Iszero e) else error "Error de tipado: verifique su operador Iszero"
+-- If ternario
+evalt (If e e1 e2) = if vt [] (If e e1 e2) TNum || vt [] (If e e1 e2) TBool then eval (If e e1 e2) else error "Error de tipado: verifique su operador If"
+-- Let binario
+evalt (Let e1 (Abs x e2)) = if vt [] (Let e1 (Abs x e2)) TNum || vt [] (Let e1 (Abs x e2)) TBool then eval (Let e1 (Abs x e2)) else error "Error de tipado: verifique su operador Let"
+--MatchNat ternario - Ejercicio extra
+evalt (MatchNat a e1 (Abs x e2)) = if vt [] (MatchNat a e1 (Abs x e2)) TNum || vt [] (MatchNat a e1 (Abs x e2)) TBool then eval (MatchNat a e1 (Abs x e2)) else error "Error de tipado: verifique su operador MatchNat"
+--Gt (mayor que) -- Ejercicio extra 
+evalt (Gt e1 e2) = if vt [] (Gt e1 e2) TBool then eval (Gt e1 e2) else error "Error de tipado: verifique su operador mayor que (Gt)"
+--Lt (menor que) -- Ejercicio extra
+evalt (Lt e1 e2) = if vt [] (Lt e1 e2) TBool then eval (Lt e1 e2) else error "Error de tipado: verifique su operador menor que (Lt)"
+
+evalt e = error "¡eval!, algo salió mal D:"
 
 --------------------------------
 --         Extra (•‿•)        -- 
 --------------------------------
 
---1. Agrega a nuestro lenguaje las expresiones de matchNat y orden "mayor que" (Gt) y "menor que" (Lt). La especificación para los operadores de orden es la usual, y para marchNat es la siguiente:
+--1. Agrega a nuestro lenguaje las expresiones de MatchNat y orden "mayor que" (Gt) y "menor que" (Lt). La especificación para los operadores de orden es la usual, y para marchNat es la siguiente:
 --Sintaxis Concreta: marchNat e with 0 -> e1 | suc x -> e2 end
 --Semántica: para evaluar una expresión marchNat debemos evaluar e a un valor v. Si v es 0 se devuelve el valor de el y si v es suc v' entonces se devueleve el valor de e2 pasando el valor v' a x.
 
 --Este ejercicio se hizo en conjunto con las anteriores preguntas de la práctica
---Para evaluar las expresiónes MatchNat, Gt y Lt debemos usar la función "eval" y se debe traducir la expresión en sintaxis concreta de la siguiente forma:
+--Para evaluar las expresiónes MatchNat, Gt y Lt debemos usar la función "evalt" y se debe traducir la expresión en sintaxis concreta de la siguiente forma:
 
 -- 1. eval (matchNat e with 0 -> e1 | suc x -> e2 end) <=> eval (MathNat e e1 (Abs x e2))
+
 --Ejemplo
 mn :: EAB
 mn = MatchNat (Pred (Sum (Num 5) (Num 7))) (Num 7) (Abs "x" (Prod (Num 3) (Var "x")))
+--Al introducir el comando "evalt mn" en la terminal obtenemos el resultado deseado (Num 30).
 
---Al introducir el comando "eval mn" en la terminal obtenemos el resultado deseado (Num 30).
 -- 2. eval (e1 > e2) <=> eval (Gt e1 e2)
---Ejemplo
 
+--Ejemplo
 r :: EAB
 r = Prod (Sum (Num 3) (Num 4)) (Num 5) -- = 35
 gt1 :: EAB
 gt1 = Gt r mn
---Al introducir el comando "eval gt1" en la terminal obtenemos el resultado deseado 35 > 30 -> B True.
---eval (e1 < e2) <=> eval (Lt e1 e2)
+--Al introducir el comando "evalt gt1" en la terminal obtenemos el resultado deseado 35 > 30 -> B True.
+
+-- 3. eval (e1 < e2) <=> eval (Lt e1 e2)
 
 --Ejemplo
 lt1 :: EAB
 lt1 = Lt r mn
---Al introducir el comando "eval lt1" en la terminal obtenemos el resultado deseado 35 < 30 -> B False.
------------------------------------------------------------------------------------------------------------------------
+--Al introducir el comando "evalt lt1" en la terminal obtenemos el resultado deseado 35 < 30 -> B False.
+
+--FIN
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 -- Caso base, parametros ya reducidos
+
 p :: EAB
 p = Sum (Num 2) (Num 2)
 
 q :: EAB
 q = Prod (Num 5) (Num 2)
+
+sum' :: EAB
+sum' = Sum (Num 3) (Num 3)
 
 -- Resolver primero a la izquierda
 --r :: EAB
@@ -420,6 +454,7 @@ q = Prod (Num 5) (Num 2)
 -- El caso para las multiplicaciones es analogo
 
 -- Tipos booleanos 
+
 b1 :: EAB
 b1 = And (B True) (B True)
 
@@ -439,6 +474,10 @@ b6 :: EAB
 b6 = Or (B True) (B False)
 
 --Probando el Let
+
+let0 :: EAB
+let0 = Let (Num 4) (Abs "x" (Var "x")) -- let x = 4 in x  o let(4,x.x)
+
 let1 :: EAB
 let1 = Let (Num 4) (Abs "z" (Sum (Var "z") (Num 1))) -- let z = 4 in z + 1 o let(4,z.z+1)
 
@@ -462,19 +501,3 @@ mn1 =  MatchNat (Num 0) (Num 4) (Abs "x" (Sum (Var "x") (Num 5)))
 
 mn2 :: EAB
 mn2 = MatchNat r (Num 4) (Abs "x" (Sum (Var "x") (Num 5)))
--- El caso para la conjunción es analogo
--- data EAB = Var String
---         |  Num Int
---         |  B Bool   
---         |  Sum EAB EAB
---         |  Prod EAB EAB
---         |  Neg EAB
---         |  Pred EAB
---         |  Suc EAB
---         |  And EAB EAB
---         |  Or EAB EAB
---         |  Not EAB
---         |  Iszero EAB
---         |  If EAB EAB EAB
---         |  Let EAB EAB
---         |  Abs String EAB deriving (Show,Eq)
