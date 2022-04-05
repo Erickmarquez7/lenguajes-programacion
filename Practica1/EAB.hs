@@ -6,9 +6,9 @@ module Practica1.EAB where
 --                      Práctica 1                       --
 -----------------------------------------------------------
 --Integrantes:                                           --
---1. Bernal Márquez Erick                                --
---2. Deloya Andrade Ana Valeria                          -- 
---3. Villegas Barrón César                               --
+--1. Bernal Márquez Erick                       317042522--
+--2. Deloya Andrade Ana Valeria                 317277582-- 
+--3. Villegas Barrón César                      314002033--
 -----------------------------------------------------------
 
 ----------------------------
