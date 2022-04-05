@@ -1,5 +1,5 @@
 
-module EAB1 where
+module Practica1.EAB where
 -----------------------------------------------------------
 --      Lenguajes de Programación y sus Paradigmas       --  
 -----------------------------------------------------------            
