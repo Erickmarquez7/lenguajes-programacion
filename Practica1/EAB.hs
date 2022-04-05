@@ -35,6 +35,7 @@ data EAB = Var String
         |  MatchNat EAB EAB EAB --Ejercicio extra
         |  Gt EAB EAB --Ejercicio extra
         |  Lt EAB EAB deriving (Show,Eq) --Ejercicio extra
+
 --------------------------------
 --     Semántica Dinámica     --
 --------------------------------
@@ -339,7 +340,7 @@ vt g (If e1 e2 e3) t = vt g e1 TBool && vt g e2 t && vt g e3 t --(tif)
 vt g (Let e1 (Abs x e2)) TNum | vt g e1 TNum && vt (g++[(x,TNum)]) e2 TNum   = True 
                               | vt g e1 TBool && vt (g++[(x,TBool)]) e2 TNum = True
                               | otherwise                                    = False  
-vt g (Let e1 (Abs x e2)) TBool | vt g e1 TNum && vt (g++[(x,TNum)]) e2 TBool   = True 
+vt g (Let e1 (Abs x e2)) TBool | vt g e1 TNum && vt (g++[(x,TNum)]) e2 TBool   = True --let x = 2 in Iszero (x + 2)
                                | vt g e1 TBool && vt (g++[(x,TBool)]) e2 TBool = True
                                | otherwise                                     = False  
 --MatchNat ternario - Ejercicio extra
@@ -399,7 +400,7 @@ evalt e = error "¡eval!, algo salió mal D:"
 --         Extra (•‿•)        -- 
 --------------------------------
 
---1. Agrega a nuestro lenguaje las expresiones de MatchNat y orden "mayor que" (Gt) y "menor que" (Lt). La especificación para los operadores de orden es la usual, y para marchNat es la siguiente:
+--1. Agrega a nuestro lenguaje las expresiones de matchNat y orden "mayor que" (Gt) y "menor que" (Lt). La especificación para los operadores de orden es la usual, y para marchNat es la siguiente:
 --Sintaxis Concreta: marchNat e with 0 -> e1 | suc x -> e2 end
 --Semántica: para evaluar una expresión marchNat debemos evaluar e a un valor v. Si v es 0 se devuelve el valor de el y si v es suc v' entonces se devueleve el valor de e2 pasando el valor v' a x.
 
@@ -431,7 +432,7 @@ lt1 = Lt r mn
 
 --FIN
 
------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------
 
 -- Caso base, parametros ya reducidos
 
@@ -501,3 +502,12 @@ mn1 =  MatchNat (Num 0) (Num 4) (Abs "x" (Sum (Var "x") (Num 5)))
 
 mn2 :: EAB
 mn2 = MatchNat r (Num 4) (Abs "x" (Sum (Var "x") (Num 5)))
+
+--v = vt [("x",TNum)] (Sum (Num 4) (Var "x")) TNum
+
+ctx1 = [("x",TNum), ("y", TNum)]
+ctx2 = [("x",TNum)]
+
+ctx3 = [("w",TBool)]
+
+prueba = Sum (Num 4) (Sum (Var "x") (Var "y"))
