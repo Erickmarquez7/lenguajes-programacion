@@ -1,5 +1,5 @@
-
 module Practica2.MinHs where
+
 -----------------------------------------------------------
 --      Lenguajes de Programación y sus Paradigmas       --  
 -----------------------------------------------------------            
@@ -16,6 +16,8 @@ module Practica2.MinHs where
 --------------------------------------
 
 -- 1. Crear un nuevo tipo de dato el cual representa la sintaxis abstracta para el lenguaje MinHs:
+type Identifier = String
+
 data Expr = V Identifier | I Int | B Bool
             | Fn Identifier Expr
             | Succ Expr | Pred Expr
@@ -28,42 +30,63 @@ data Expr = V Identifier | I Int | B Bool
             | App Expr Expr
 
 
--- Para las reglas de tipados
-type Identifier = Int
-data Type = T Identifier
-            | Integer | Boolean
-            | Arrow Type Type
+----------------------------------------
+--  Algoritmo de inferencia de tipos  --
+----------------------------------------
 
--- Contexto al igual que en al anterior practica, para verificacion de tipos
+-- Para las reglas de tipados:
+type TIdentifier = Int
+data Type = T TIdentifier
+            | Integer | Boolean
+            | Arrow Type Type deriving (Eq)
+
+-- Contexto al igual que en al anterior practica, para verificacion de tipos:
 type Ctxt = [(Identifier, Type)]
 
 -- Conjunto de restricciones
 type Constraint = [(Type, Type)]
 
 {-  1. (1 pt) Implementar la función tvars :: Type → [Identifier] la cual devuelve el conjunto
-de variables de tipo.
-Ejemplos:
-main > tvars ( T1 → ( T2 → T1 ) ) ⇒ [1,2]
-main > tvars ( Integer → ( Boolean → Integer ) ) ⇒ []
--}
-tvars :: Type -> [Identifier]
-tvars = error "D:"
+de variables de tipo.-}
 
+--Primero utilizamos la siguiente función auxiliar para remover elementos duplicados:
+myNub :: (Eq a) => [a] -> [a]
+myNub (x:xs) = x : myNub (filter (/= x) xs)
+myNub [] = []
 
+--Así, definimos tvars como:
+tvars :: Type -> [TIdentifier]
+tvars Integer = []
+tvars Boolean = []
+tvars (T i) = [i]
+tvars (Arrow t s) = myNub (tvars t ++ tvars s)
+
+--Ejemplos:
+t1 :: Type
+t1 = Arrow (T 1) (Arrow (T 2)  (T 1))   --main > tvars ( T1 → ( T2 → T1 ) ) ⇒ [1,2]
+
+t2 :: Type
+t2 = Arrow Integer (Arrow Boolean Integer) --main > tvars ( Integer → ( Boolean → Integer )) ⇒ []
 
 {- 2. (1 pt) Implementar la función fresh :: [Type] → Type la cual dado un conjunto de vari-
 ables de tipo, obtiene una variable de tipo fresca, es decir, que no aparece en este conjunto.
-
 Esta funcion es importante que se realice utilizando lo discutido durante el labo-
-ratorio sobre el problema de MinFree.
+ratorio sobre el problema de MinFree.-}
 
-Ejemplos:
-main > fresh [T0 , T1 , T2 , T3] ⇒ T4
-main > fresh [T0 , T1 , T3 , T4] ⇒ T2
--}
+--aquí me quedé u:
+
 fresh :: [Type] -> Type
 fresh = error "D:"
 
+
+
+
+
+--Ejemplos:
+t3 :: [Type]
+t3 =  [T 0,T 1,T 2,T 3] --main > fresh [T0 , T1 , T2 , T3] ⇒ T4
+t4 :: [Type]
+t4 =  [T 0,T 1,T 3,T 4] --main > fresh [T0 , T1 , T3 , T4] ⇒ T2
 
 
 {- 3. (1 pt) Implementar la función rest :: ( [ Type ] , Expr ) → ( [ Type ] , Ctxt , Type
@@ -84,7 +107,7 @@ rest = error "D:"
 ---------- Algoritmo de Unificación -----------
 
 -- Definimos como una lista de duplas la substitucion en tipos.
-type Substitution = [(Identifier,Type)]
+type Substitution = [(TIdentifier,Type)]
 
 
 {- 1. (1 pt) Implementar la función subst :: Type → Substitution → Type la cual aplica la
@@ -117,10 +140,19 @@ unif = error "D:"
 ------------- Inferencia de tipos -------------
 {- 1. (1 pt) Implementar la función infer :: Expr > ( Ctxt , Type ) la cual dada una expre-
 sion, infiere su tipo devolviendo el contexto donde es valido.
-
 Ejemplos:
 main > infer ( Let ”x” (B True) (And (V ”x” ) ( Let ”x” ( I 1 0 ) (Eq ( I 0 ) ( Succ
 (V ”x” )))))) ⇒ ( [ ] , Boolean )
 -}
 infer :: Expr -> (Ctxt, Type)
 infer = error "D:"
+
+
+
+
+
+
+-----------------------------------
+--stack ghci src/Practica2.Minhs.hs
+-----------------------------------
+
