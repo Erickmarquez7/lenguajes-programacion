@@ -43,7 +43,7 @@ type TIdentifier = Int
 
 data Type = T TIdentifier
             | Integer | Boolean
-            | Arrow Type Type deriving (Eq)
+            | Arrow Type Type deriving (Show, Eq)
 
 -- Contexto al igual que en al anterior practica, para verificacion de tipos:
 type Ctxt = [(Identifier, Type)]
@@ -66,20 +66,23 @@ tvars Boolean = []
 tvars (T i) = [i]
 tvars (Arrow t s) = myNub (tvars t ++ tvars s)
 
---Ejemplos:
+--Ejemplo: tvars t1 = [1,2], donde t1 se define como:
 t1 :: Type
-t1 = Arrow (T 1) (Arrow (T 2)  (T 1))   --main > tvars ( T1 → ( T2 → T1 ) ) ⇒ [1,2]
+t1 = Arrow (T 1) (Arrow (T 2)  (T 1))   
 
+--Ejemplo: tvars t2 = [], donde t1 se define como:
 t2 :: Type
-t2 = Arrow Integer (Arrow Boolean Integer) --main > tvars ( Integer → ( Boolean → Integer )) ⇒ []
+t2 = Arrow Integer (Arrow Boolean Integer) 
 
 {- 2. (1 pt) Implementar la función fresh :: [Type] → Type la cual dado un conjunto de vari-
 ables de tipo, obtiene una variable de tipo fresca, es decir, que no aparece en este conjunto.
 Esta funcion es importante que se realice utilizando lo discutido durante el labo-
 ratorio sobre el problema de MinFree.-}
 
---Primero definimos las siguientes funciones auxiliare
+--Primero definimos algunas funciones auxiliares:
 
+{-minFree recibe una lista de números naturales y regresa el mínimo número natural de la lista
+que no está en ella, requiere de la función auxiliar minFrom-}
 type Nat = Int
 
 minFree :: [Nat] -> Nat
@@ -94,41 +97,52 @@ minFrom a (n,xs)
        b = a + 1 + div n 2
        m = length us
 
+{-freshAux recibe una lista de tipos Type y regresa la lista cuyos elementos son los enteros asociados
+a cada tipo libre de la lista original sin repetición de elementos-}
+freshAux :: [Type] -> [Int]
+freshAux [] = []
+freshAux x = tvars (head x) `union` freshAux (tail x)
 
+--Ejemplo: freshAux l1 = [1,2,3,4,6], donde l1 se defnie como:
+l1 :: [Type]
+l1 = [T 1, Arrow (T 1) (T 2),T 2, T 3, T 4, Arrow (T 4) (Arrow (T 6)  (T 4)), Arrow Integer Boolean]
+
+--Así podemos definir la función fresh de la siguiente forma:
 fresh :: [Type] -> Type
-fresh [] = []
-fresh x = T (minFree ((tvars (head x)) `union` (fresh (tail x))))
+fresh x = T (minFree (freshAux x))
 
+--Ejemplo: fresh l2 = T 7, donde l2 se define como:
+l2 :: [Type]
+l2 = [T 0, T 1,T 2,T 3,T 5, Arrow (T 4) (Arrow (T 6)  (T 4))]
 
--- aplicaT s (T n xs) = T n [aplicaT s x | x <- xs]
--- union xs ys
--- xs `union` ys
+--Ejemplo: fresh l3 = T 4, donde l3 se define como:
+l3 :: [Type]
+l3 =  [T 0,T 1,T 2,T 3] 
 
-m1 :: [Type]
-m1 = [T 1,T 2,T 3,T 5]
--- fresh m1
-
---Ejemplos:
-t3 :: [Type]
-t3 =  [T 0,T 1,T 2,T 3] --main > fresh [T0 , T1 , T2 , T3] ⇒ T4
-t4 :: [Type]
-t4 =  [T 0,T 1,T 3,T 4] --main > fresh [T0 , T1 , T3 , T4] ⇒ T2
+--Ejemplo: fresh l4 = T 2, donde l4 se define como:
+l4 :: [Type]
+l4 =  [T 0,T 1,T 3,T 4]
 
 {- 3. (1 pt) Implementar la función rest :: ( [ Type ] , Expr ) → ( [ Type ] , Ctxt , Type
 , Constraint ) la cual dada una expresion, infiere su tipo implementando las reglas descritas
 anteriormente. Devolviendo el contexto y el conjunto de restricciones donde es valido. Utiliza
-el conjunto de variables de tipo para crear variables de tipo frecas durante la ejecucion.
-Ejemplos:
-main > rest ( [] , Fn ”x” (V ”x” ) ) ⇒
-( [ T0 ] , [ ] , T0 > T0 , [ ] )
-main > rest ( [] , Add (V ”x” ) (V ”x” ) ) ⇒
-( [ T0 , T1 ] , [ ( ”x” , T0 ) , ( ”x” , T1 ) ] , Integer , [ ( T0 , T1 ) , (T0 ,
-Integer ) , (T1 , Integer ) ] )
--}
+el conjunto de variables de tipo para crear variables de tipo frecas durante la ejecucion.-}
+
 rest :: ([Type],Expr) -> ([Type],Ctxt,Type,Constraint)
 rest = error "D:"
 
----------- Algoritmo de Unificación -----------
+
+--Ejemplos:
+{-main > rest ( [] , Fn ”x” (V ”x” ) ) ⇒
+( [ T0 ] , [ ] , T0 > T0 , [ ] )
+main > rest ( [] , Add (V ”x” ) (V ”x” ) ) ⇒
+( [ T0 , T1 ] , [ ( ”x” , T0 ) , ( ”x” , T1 ) ] , Integer , [ ( T0 , T1 ) , (T0 ,
+Integer ) , (T1 , Integer ) ] )-}
+
+
+-------------------------------------
+--    Algoritmo de Unificación U   --
+-------------------------------------
 
 -- Definimos como una lista de duplas la substitucion en tipos.
 type Substitution = [(TIdentifier,Type)]
@@ -164,7 +178,7 @@ cador mas general (μ). Pueden consultar la implementacion realizada durante el 
 -- type Constraint = [(Type, Type)]
 unif :: Constraint -> Substitution
 unif [] = []
- 
+unif c = error "D:" 
 
 ------------- Inferencia de tipos -------------
 {- 1. (1 pt) Implementar la función infer :: Expr > ( Ctxt , Type ) la cual dada una expre-
