@@ -1,5 +1,4 @@
 module Practica2.MinHs where
-
 import Data.Ix
 import Data.List
 
@@ -33,7 +32,6 @@ data Expr = V Identifier | I Int | B Bool
             | Let Identifier Expr Expr
             | App Expr Expr deriving (Eq, Show)
 
-
 ----------------------------------------
 --  Algoritmo de inferencia de tipos  --
 ----------------------------------------
@@ -51,7 +49,7 @@ type Ctxt = [(Identifier, Type)]
 -- Conjunto de restricciones
 type Constraint = [(Type, Type)]
 
-{-  1. (1 pt) Implementar la función tvars :: Type → [Identifier] la cual devuelve el conjunto
+{-  1. (1 pt) Implementar la función tvars :: Type → [TIdentifier] la cual devuelve el conjunto
 de variables de tipo.-}
 
 --Primero utilizamos la siguiente función auxiliar para remover elementos duplicados:
@@ -109,6 +107,7 @@ l1 = [T 1, Arrow (T 1) (T 2),T 2, T 3, T 4, Arrow (T 4) (Arrow (T 6)  (T 4)), Ar
 
 --Así podemos definir la función fresh de la siguiente forma:
 fresh :: [Type] -> Type
+fresh [] = T 0
 fresh x = T (minFree (freshAux x))
 
 --Ejemplo: fresh l2 = T 7, donde l2 se define como:
@@ -123,13 +122,138 @@ l3 =  [T 0,T 1,T 2,T 3]
 l4 :: [Type]
 l4 =  [T 0,T 1,T 3,T 4]
 
-{- 3. (1 pt) Implementar la función rest :: ( [ Type ] , Expr ) → ( [ Type ] , Ctxt , Type
-, Constraint ) la cual dada una expresion, infiere su tipo implementando las reglas descritas
-anteriormente. Devolviendo el contexto y el conjunto de restricciones donde es valido. Utiliza
-el conjunto de variables de tipo para crear variables de tipo frecas durante la ejecucion.-}
+{- 3. (1 pt) Implementar la función rest :: ( [ Type ] , Expr ) → ( [ Type ] , Ctxt , Type, Constraint ) 
+la cual dada una expresion, infiere su tipo implementando las reglas descritas anteriormente. 
+Devolviendo el contexto y el conjunto de restricciones donde es valido. Utiliza el conjunto de variables
+ de tipo para crear variables de tipo frecas durante la ejecucion.-}
 
+{-Primero definimos las funciónes auxiliares que proyectan los diferentes valores del vector
+de cuatro entradas que toma el codominio de la función rest:-}
+p1 :: ([Type],Ctxt,Type,Constraint) -> [Type]
+p1 (a,b,c,d) = a 
+
+p2 :: ([Type],Ctxt,Type,Constraint) -> Ctxt
+p2 (a,b,c,d) = b 
+
+p3 :: ([Type],Ctxt,Type,Constraint) -> Type
+p3 (a,b,c,d) = c 
+
+p4 :: ([Type],Ctxt,Type,Constraint) -> Constraint
+p4 (a,b,c,d) = d
+
+{-También definimos las función auxiliares tvarsR y tvarsC que recibe un conjunto de resticciones (o contextos) 
+y devuelven la lista de los enteros asociados a las variables de tipos que contiene cada restricción (o contexto). 
+Ambas funciones serán de utilidad al definir la función rest para operadores binarios y terciaros, así como para 
+experiones let y aplicaciones-}
+
+tvarsR :: Constraint -> [TIdentifier]
+tvarsR [] = []
+tvarsR x = tvars (fst (head x)) `union` tvars (snd (head x)) `union` tvarsR (tail x)
+
+--Ejemplo tvarsR r1 = [0,1,2,3,5,4] donde r1 se define como:
+r1 :: Constraint
+r1 = [(T 0, T 1),(T 1, T 2),(T 3, Arrow (T 1) (T 5)),(T 4, Integer)]
+
+tvarsC :: Ctxt -> [TIdentifier]
+tvarsC [] = []
+tvarsC x = tvars (snd (head x)) `union` tvarsC (tail x)
+
+--Ejemplo tvarsC r2 = [1,2,5] donde r1 se define como:
+r2 :: Ctxt
+r2 = [("x", T 1),("y", T 2),("z", Arrow (T 1) (T 5))]
+
+--Teniendo en cuenta las funciones auxiliares p1, p2, p3, p4, tvarsR y tvarsC podemos definir rest de la siguiente forma:
 rest :: ([Type],Expr) -> ([Type],Ctxt,Type,Constraint)
-rest = error "D:"
+--Tipado de variables
+rest (l, V x) = (l ++ [fresh l], [(x,fresh l)],fresh l,[])
+-- Tipado de constantes
+rest (l, I n) = (l, [],Integer,[])
+rest (l, B b) = (l, [],Boolean,[])
+--Tipado de funciones
+rest (l, Fn x e) = (l ++ p1 (rest (l,V x)),
+                   p2 (rest (l,e)) `union` p2 (rest (l,V x)),
+                   Arrow (p3 (rest (l,V x))) (p3 (rest (l,e))),
+                   p4 (rest (l,e)))
+--Tipado de operadores unarios                   
+rest (l, Succ e) = (l,
+                   p2 (rest (l,e)),
+                   Integer,
+                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Integer)])
+rest (l, Pred e) = (l,
+                   p2 (rest (l,e)),
+                   Integer,
+                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Integer)])
+rest (l, Not e) = (l,
+                   p2 (rest (l,e)),
+                   Boolean,
+                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Boolean)])
+rest (l, Iszero e) = (l,
+                   p2 (rest (l,e)),
+                   Boolean,
+                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Boolean)])                   
+--Tipado de operadores binarios y terciarios:
+rest (l, Add e1 e2) = if null (tvarsR (p4 (rest (l,e1))) `union` tvarsC (p2 (rest (l,e1))) `union` tvars (p3 (rest (l,e1)))
+                         `intersect`
+                         tvarsR (p4 (rest (l,e2))) `union` tvarsC (p2 (rest (l,e2))) `union` tvars (p3 (rest (l,e2))))
+                              then (l, 
+                                    p2 (rest (l,e1)) `union` p2 (rest (l,e2)), 
+                                    Integer, 
+                                    p4 (rest (l,e1)) ++ p4 (rest (l,e2)) ++ [(p3 (rest (l,e1)),Integer),(p3 (rest (l,e2)),Integer)]) --OJO falta modelar como añadir el conjunto S :w
+                                          else error "los conjuntos de las variables libres asociadas a las expresiones e1 y e2 no son disjuntos"
+
+--Mul Expr Expr
+
+--And Expr Expr  
+
+--Or Expr Expr
+
+--Lt Expr Expr 
+
+--Gt Expr Expr 
+
+--Eq Expr Expr
+
+--If Expr Expr Expr
+
+--Tipado de aplicaciones
+
+--App Expr Expr 
+
+--Tipado de expresión Let
+
+--Let Identifier Expr Expr
+
+rest x = error "D:"
+
+
+--No hacer caso jeje
+----------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                    
+
+--p1 :: ([Type],Ctxt,Type,Constraint) -> [Type]
+
+{-type TIdentifier = Int
+
+data Type = T TIdentifier
+            | Integer | Boolean
+            | Arrow Type Type deriving (Show, Eq)
+
+-- Contexto al igual que en al anterior practica, para verificacion de tipos:
+type Ctxt = [(Identifier, Type)]
+
+-- Conjunto de restricciones
+type Constraint = [(Type, Type)]-}
+
+
+{-data Expr = V Identifier | I Int | B Bool
+            | Fn Identifier Expr
+            | Succ Expr | Pred Expr
+            | Add Expr Expr | Mul Expr Expr
+            | Not Expr | Iszero Expr
+            | And Expr Expr | Or Expr Expr
+            | Lt Expr Expr | Gt Expr Expr | Eq Expr Expr
+            | If Expr Expr Expr
+            | Let Identifier Expr Expr
+            | App Expr Expr deriving (Eq, Show)-}
 
 
 --Ejemplos:
@@ -138,7 +262,7 @@ rest = error "D:"
 main > rest ( [] , Add (V ”x” ) (V ”x” ) ) ⇒
 ( [ T0 , T1 ] , [ ( ”x” , T0 ) , ( ”x” , T1 ) ] , Integer , [ ( T0 , T1 ) , (T0 ,
 Integer ) , (T1 , Integer ) ] )-}
-
+----------------------------------------------------------------------------------------------------------------------------------------------------
 
 -------------------------------------
 --    Algoritmo de Unificación U   --
