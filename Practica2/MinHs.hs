@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Practica2.MinHs where
 import Data.Ix
 import Data.List
@@ -66,11 +67,11 @@ tvars (Arrow t s) = myNub (tvars t ++ tvars s)
 
 --Ejemplo: tvars t1 = [1,2], donde t1 se define como:
 t1 :: Type
-t1 = Arrow (T 1) (Arrow (T 2)  (T 1))   
+t1 = Arrow (T 1) (Arrow (T 2)  (T 1))
 
 --Ejemplo: tvars t2 = [], donde t1 se define como:
 t2 :: Type
-t2 = Arrow Integer (Arrow Boolean Integer) 
+t2 = Arrow Integer (Arrow Boolean Integer)
 
 {- 2. (1 pt) Implementar la función fresh :: [Type] → Type la cual dado un conjunto de vari-
 ables de tipo, obtiene una variable de tipo fresca, es decir, que no aparece en este conjunto.
@@ -116,7 +117,7 @@ l2 = [T 0, T 1,T 2,T 3,T 5, Arrow (T 4) (Arrow (T 6)  (T 4))]
 
 --Ejemplo: fresh l3 = T 4, donde l3 se define como:
 l3 :: [Type]
-l3 =  [T 0,T 1,T 2,T 3] 
+l3 =  [T 0,T 1,T 2,T 3]
 
 --Ejemplo: fresh l4 = T 2, donde l4 se define como:
 l4 :: [Type]
@@ -130,13 +131,13 @@ Devolviendo el contexto y el conjunto de restricciones donde es valido. Utiliza 
 {-Primero definimos las funciónes auxiliares que proyectan los diferentes valores del vector
 de cuatro entradas que toma el codominio de la función rest:-}
 p1 :: ([Type],Ctxt,Type,Constraint) -> [Type]
-p1 (a,b,c,d) = a 
+p1 (a,b,c,d) = a
 
 p2 :: ([Type],Ctxt,Type,Constraint) -> Ctxt
-p2 (a,b,c,d) = b 
+p2 (a,b,c,d) = b
 
 p3 :: ([Type],Ctxt,Type,Constraint) -> Type
-p3 (a,b,c,d) = c 
+p3 (a,b,c,d) = c
 
 p4 :: ([Type],Ctxt,Type,Constraint) -> Constraint
 p4 (a,b,c,d) = d
@@ -190,14 +191,14 @@ rest (l, Not e) = (l,
 rest (l, Iszero e) = (l,
                    p2 (rest (l,e)),
                    Boolean,
-                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Boolean)])                   
+                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Boolean)])
 --Tipado de operadores binarios y terciarios:
 rest (l, Add e1 e2) = if null (tvarsR (p4 (rest (l,e1))) `union` tvarsC (p2 (rest (l,e1))) `union` tvars (p3 (rest (l,e1)))
                          `intersect`
                          tvarsR (p4 (rest (l,e2))) `union` tvarsC (p2 (rest (l,e2))) `union` tvars (p3 (rest (l,e2))))
-                              then (l, 
-                                    p2 (rest (l,e1)) `union` p2 (rest (l,e2)), 
-                                    Integer, 
+                              then (l,
+                                    p2 (rest (l,e1)) `union` p2 (rest (l,e2)),
+                                    Integer,
                                     p4 (rest (l,e1)) ++ p4 (rest (l,e2)) ++ [(p3 (rest (l,e1)),Integer),(p3 (rest (l,e2)),Integer)]) --OJO falta modelar como añadir el conjunto S :w
                                           else error "los conjuntos de las variables libres asociadas a las expresiones e1 y e2 no son disjuntos"
 
@@ -276,23 +277,25 @@ type Substitution = [(TIdentifier,Type)]
 sustitucion a un tipo dado.
 Ejemplos:
 main > subst (T1 → (T2 → T1)) [(3 , T4) , (5 , T6)] ⇒ T1 → (T2 → T1)
-main > subst (T1 → (T2 → T1)) [(1 , T2) , (2 , T3)] ⇒ T2 → (T3 → T2 )
+main > subst (T1 → (T2 → T1))         [(1 , T2) , (2 , T3)   ⇒ T2 → (T3 → T2 )
+subst (Arrow (T 1) (Arrow (T 2) (T 1))) [(1, T 2), (2, T 3)] -> Arrow (T 2) (Arrow (T 3) (T 2))
 -}
 subst :: Type -> Substitution -> Type
---subst = error "D:"
-subst (T t) s = case s of 
-                [] -> T t
-                ((x, y): sub) -> if x == t then y else subst (T t) sub
+subst (T t) [] = T t
+subst (T t) ((ti,T t'):xs) = if t == ti then T t' else subst (T t) xs
 subst (Arrow t1 t2) s = Arrow (subst t1 s) (subst t2 s)
 subst t s = t
+
 
 {- 2. (1 pt) Implementar la función comp :: Substitution → Substitution → Substitution
 la cual realiza la composicion de dos sustituciones.
 Ejemplos:
 main > comp [(1 , T2 → T3) , (4 , T5)] [( 2 , T6)] ⇒ [(1 , T6 → T3) , (4 , T5), (2 , T6)]
+comp [(1, Arrow (T 2) (T 3)), (4, T 5)] [(2,T 6)] -> [(1,Arrow (T 6) (T 3)),(4,T 5),(2,T 6)]
  -}
+--type Substitution = [(TIdentifier,Type)]
 comp :: Substitution -> Substitution -> Substitution
-comp s1 s2 = [(fst t', subst (snd t') s2) | t' <- s1] `union` 
+comp s1 s2 = [(fst t', subst (snd t') s2) | t' <- s1] `union`
              [(x,t) | (x,t) <- s2,  x `notElem` [y | (y, t) <- s1]] -- no c pk no jala con snd 
 
 {- 3. (1 pt) Implementar la función unif :: Constraint → Substitution la cual obtiene el unifi-
@@ -301,8 +304,37 @@ cador mas general (μ). Pueden consultar la implementacion realizada durante el 
 -- type Substitution = [(TIdentifier,Type)]
 -- type Constraint = [(Type, Type)]
 unif :: Constraint -> Substitution
-unif [] = []
-unif c = error "D:" 
+unif c = u where [u] = unifaux c
+
+unifaux :: Constraint -> [Substitution]
+unifaux [] = [[]]
+unifaux (t: ts) = [comp s1 s2 |
+                          s1 <- unifaux' (fst t) (snd t),
+                          s2 <- unifaux [(subst (fst t) s1, subst (snd t) s1) | t <- ts]]
+
+unifaux' :: Type -> Type -> [Substitution]
+unifaux' (T x) (T y)
+ | x == y = [[]]
+ | otherwise = [[(x, T y)]]
+
+unifaux' (T x) t 
+ | x `elem` tvars t = error "No se puede ):, no son disjuntos"
+ | otherwise = return [(x, t)]
+
+unifaux' t (T x)
+ | x `elem` tvars t = error "No se puede ):, no son disjuntos"
+ | otherwise = return [(x, t)]
+                   
+unifaux' (Arrow t1 t2) (Arrow t3 t4) = [comp s1 s2 | -- analogo al anterior
+                                       s1 <- unifaux' t1 t3, 
+                                       s2 <- unifaux' (subst t2 s1) (subst t4 s1)]
+
+unifaux' t s 
+ | t == s = [[]] 
+ | otherwise = error "No se puede hacer la unificación :("
+
+
+
 
 ------------- Inferencia de tipos -------------
 {- 1. (1 pt) Implementar la función infer :: Expr > ( Ctxt , Type ) la cual dada una expre-
@@ -311,6 +343,40 @@ Ejemplos:
 main > infer ( Let ”x” (B True) (And (V ”x” ) ( Let ”x” ( I 1 0 ) (Eq ( I 0 ) ( Succ
 (V ”x” )))))) ⇒ ( [ ] , Boolean )
 -}
+{-data Expr = V Identifier | I Int | B Bool
+            | Fn Identifier Expr
+            | Succ Expr | Pred Expr
+            | Add Expr Expr | Mul Expr Expr
+            | Not Expr | Iszero Expr
+            | And Expr Expr | Or Expr Expr
+            | Lt Expr Expr | Gt Expr Expr | Eq Expr Expr
+            | If Expr Expr Expr
+            | Let Identifier Expr Expr
+            | App Expr Expr deriving (Eq, Show)-}
+
+infer' :: ([Type], Expr) -> ([Type], Ctxt, [Type], Constraint)
+infer' (ts, V x) = 
+       let fs = fresh ts
+           nv' =  ts `union` [fs]
+           in (nv',[(x,fs)], [fs], [])
+
+{-infer' (v, I i) = 
+       let n = fresh v
+           tl = v `union` [n]
+           in (tl, [(i,n)], n, []) -- i debe ser string
+
+infer' (v, B b) = 
+       let n = fresh v
+           tl = v `union` [n]
+           in (tl, [(b,n)], n, [])-} -- b debe ser string
+                        --ts, c, t, c
+infer' (v, Succ e) = let (v, g, t, r) = infer' (v, e)
+                         z = fresh v
+                         nv' = t `union` [z]
+                              in
+                                (nv', g, [z], r)
+
+
 infer :: Expr -> (Ctxt, Type)
 infer = error "D:"
 
