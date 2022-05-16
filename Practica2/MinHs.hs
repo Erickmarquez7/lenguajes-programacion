@@ -142,7 +142,7 @@ p3 (a,b,c,d) = c
 p4 :: ([Type],Ctxt,Type,Constraint) -> Constraint
 p4 (a,b,c,d) = d
 
-{-También definimos la función auxiliar restrS que modela el comportamiento del conjunto S definido en las reglas  de tipado
+{-También definimos la función auxiliar restrS que modela el comportamiento del conjunto S definido en las reglas  de tipado 
 para operadores  binarios, terciaros, así como para  experiones let y aplicaciones. Es decir, restrS recibe dos contextos y si
 una variable aparece en ambos contextos entonces la función añade la restricción correspondiente de tipos-} 
 
@@ -157,7 +157,7 @@ r2 = [("x",Arrow (T 3) (T 4)),("w", T 2)]
 r3 :: Ctxt
 r3 = [("z",T 10),("w", T 22)]
 
-{-Teniendo en cuenta las funciones auxiliares p1, p2, p3, p4, tvarsR, tvarsC y restrS podemos definir 
+{-Teniendo en cuenta las funciones auxiliares p1, p2, p3, p4 y restrS podemos definir 
 la función rest de la siguiente forma:-}
 rest :: ([Type],Expr) -> ([Type],Ctxt,Type,Constraint)
 --Tipado de variables
@@ -186,9 +186,8 @@ rest (l, Not e) = (l  `union` p1 (rest (l,e)),
 rest (l, Iszero e) = (l  `union` p1 (rest (l,e)),
                    p2 (rest (l,e)),
                    Boolean,
-                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Boolean)])                   
+                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Integer)])                   
 --Tipado de operadores binarios y terciarios:
-
 --Suma
 rest (l, Add e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
@@ -206,9 +205,9 @@ rest (l, Mul e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest 
                         ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
                         ++ [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) --los tipos de e1 y e2 deben ser enteros
 --Conjunción
-rest (l, Or e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
-                        p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
-                        Boolean, 
+rest (l, Or e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)),
+                        p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)),
+                        Boolean,
                         p4 (rest (l,e1)) --restricciones del tipado de e1
                         ++ p4 (rest (l,e2)) --restricciones del tipado de e2
                         ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
@@ -265,7 +264,7 @@ rest (l, App e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest 
                         expresión e1 debe ser igual al tipo Arrow t2 Z, donde t2 es el tipo de la expresión e2 y Z es la variable fresca a la que pertenece la aplicación-}
 --Tipado de expresión Let
 rest (l, Let x e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
-                        p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
+                        p2 (rest (l,e1)) ++ (p2 (rest (l++p1 (rest (l,e1)),e2)) \\ [(x, p3 (rest (l, V x)))]), 
                         p3 (rest (l,e2)), 
                         p4 (rest (l,e1)) --restricciones del tipado de e1
                         ++ p4 (rest (l,e2)) --restricciones del tipado de e2
@@ -288,35 +287,44 @@ exp2 = Add (V "x") (V "x")
 -- Definimos como una lista de duplas la substitucion en tipos.
 type Substitution = [(TIdentifier,Type)]
 
+
 {- 1. (1 pt) Implementar la función subst :: Type → Substitution → Type la cual aplica la
 sustitucion a un tipo dado.
-Ejemplos:
-main > subst (T1 → (T2 → T1)) [(3 , T4) , (5 , T6)] ⇒ T1 → (T2 → T1)
-main > subst (T1 → (T2 → T1))         [(1 , T2) , (2 , T3)   ⇒ T2 → (T3 → T2 )
-subst (Arrow (T 1) (Arrow (T 2) (T 1))) [(1, T 2), (2, T 3)] -> Arrow (T 2) (Arrow (T 3) (T 2))
 -}
 subst :: Type -> Substitution -> Type
 subst (T t) [] = T t
 subst (T t) ((ti,T t'):xs) = if t == ti then T t' else subst (T t) xs
 subst (Arrow t1 t2) s = Arrow (subst t1 s) (subst t2 s)
 subst t s = t
+--Ejemplo: subst t3 [(3 , T 4) , (5 , T 6)] = Arrow (T 1) (Arrow (T 2) (T 1)), donde t3 se define como:
+t3 :: Type
+t3 = Arrow (T 1) (Arrow (T 2) (T 1))
+--Ejemplo: subst t4 [(1 , T 2) , (2 , T 3)] = Arrow (T 2) (Arrow (T 3) (T 2)), donde t4 se define como:
+t4 :: Type
+t4 = Arrow (T 1) (Arrow (T 2) (T 1))
+
 
 {- 2. (1 pt) Implementar la función comp :: Substitution → Substitution → Substitution
-la cual realiza la composicion de dos sustituciones.
-Ejemplos:
-main > comp [(1 , T2 → T3) , (4 , T5)] [( 2 , T6)] ⇒ [(1 , T6 → T3) , (4 , T5), (2 , T6)]
-comp [(1, Arrow (T 2) (T 3)), (4, T 5)] [(2,T 6)] -> [(1,Arrow (T 6) (T 3)),(4,T 5),(2,T 6)]
- -}
---type Substitution = [(TIdentifier,Type)]
+la cual realiza la composicion de dos sustituciones.-}
+
 comp :: Substitution -> Substitution -> Substitution
 comp s1 s2 = [(fst t', subst (snd t') s2) | t' <- s1] `union`
              [(x,t) | (x,t) <- s2,  x `notElem` [y | (y, t) <- s1]] -- no c pk no jala con snd 
 
+--Ejemplo: comp t5 t6 = [(1 , Arrow (T 6)  (T 3)) , (4 , T 5), (2 , T 6)], donde t5 y t6 se definen como:
+t5 :: Substitution 
+t5 = [(1 , Arrow (T 2)  (T 3)), (4 ,T 5)]
+t6 :: Substitution 
+t6 = [( 2 , T 6)]
+--Ejemplo: comp t7 t8 = [(1,Arrow (T 6) (T 3)),(4,T 5),(2,T 6)], donde t7 y t8 se definen como:
+t7 :: Substitution 
+t7 = [(1, Arrow (T 2) (T 3)), (4, T 5)]
+t8 :: Substitution 
+t8 = [(2,T 6)]
+
 {- 3. (1 pt) Implementar la función unif :: Constraint → Substitution la cual obtiene el unifi-
 cador mas general (μ). Pueden consultar la implementacion realizada durante el laboratorio.
 -}
--- type Substitution = [(TIdentifier,Type)]
--- type Constraint = [(Type, Type)]
 unif :: Constraint -> Substitution
 unif c = u where [u] = unifaux c
 
@@ -352,21 +360,7 @@ unifaux' t s
 ------------------------------------------
 
 {- 1. (1 pt) Implementar la función infer :: Expr > ( Ctxt , Type ) la cual dada una expre-
-sion, infiere su tipo devolviendo el contexto donde es valido.
-Ejemplos:
-main > infer ( Let ”x” (B True) (And (V ”x” ) ( Let ”x” ( I 1 0 ) (Eq ( I 0 ) ( Succ
-(V ”x” )))))) ⇒ ( [ ] , Boolean )
--}
-{-data Expr = V Identifier | I Int | B Bool
-            | Fn Identifier Expr
-            | Succ Expr | Pred Expr
-            | Add Expr Expr | Mul Expr Expr
-            | Not Expr | Iszero Expr
-            | And Expr Expr | Or Expr Expr
-            | Lt Expr Expr | Gt Expr Expr | Eq Expr Expr
-            | If Expr Expr Expr
-            | Let Identifier Expr Expr
-            | App Expr Expr deriving (Eq, Show)-}
+sion, infiere su tipo devolviendo el contexto donde es valido.-}
 
 infer' :: ([Type], Expr) -> ([Type], Ctxt, [Type], Constraint)
 infer' (ts, V x) = 
@@ -389,8 +383,34 @@ infer' (v, Succ e) = let (v, g, t, r) = infer' (v, e)
                               in
                                 (nv', g, [z], r)
 
+
 infer :: Expr -> (Ctxt, Type)
 infer = error "D:"
+
+------------------------------------------------------------------------------------------------------------------
+infer2 :: Expr -> (Ctxt, Type) {-  <-- al parecer esta sí jala :) -}
+infer2 e = (p2 (rest ([],e)), p3 (rest ([],e))) 
+
+--Ejemplo: infer2 exp3 = ([],Boolean), donde exp3 se define como: 
+exp3 :: Expr
+exp3 =  Let "x" (B True) (And (V "x") ( Let "x" (I 10) (Eq ( I 0 ) ( Succ (V "x" )))))
+------------------------------------------------------------------------------------------------------------------
+
+{-Ejemplos:
+main > infer ( Let ”x” (B True) (And (V ”x” ) ( Let ”x” ( I 1 0 ) (Eq ( I 0 ) ( Succ
+(V ”x” )))))) ⇒ ( [ ] , Boolean )-}
+
+
+{-data Expr = V Identifier | I Int | B Bool
+            | Fn Identifier Expr
+            | Succ Expr | Pred Expr
+            | Add Expr Expr | Mul Expr Expr
+            | Not Expr | Iszero Expr
+            | And Expr Expr | Or Expr Expr
+            | Lt Expr Expr | Gt Expr Expr | Eq Expr Expr
+            | If Expr Expr Expr
+            | Let Identifier Expr Expr
+            | App Expr Expr deriving (Eq, Show)-}
 
 -----------------------------------
 --stack ghci src/Practica2.Minhs.hs
