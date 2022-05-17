@@ -54,16 +54,16 @@ type Constraint = [(Type, Type)]
 de variables de tipo.-}
 
 --Primero utilizamos la siguiente función auxiliar para remover elementos duplicados:
-myNub :: (Eq a) => [a] -> [a]
-myNub (x:xs) = x : myNub (filter (/= x) xs)
-myNub [] = []
+noDup :: (Eq a) => [a] -> [a]
+noDup (x:xs) = x : noDup (filter (/= x) xs)
+noDup [] = []
 
 --Así, definimos tvars como:
 tvars :: Type -> [TIdentifier]
 tvars Integer = []
 tvars Boolean = []
 tvars (T i) = [i]
-tvars (Arrow t s) = myNub (tvars t ++ tvars s)
+tvars (Arrow t s) = noDup (tvars t ++ tvars s)
 
 --Ejemplo: tvars t1 = [1,2], donde t1 se define como:
 t1 :: Type
@@ -157,6 +157,10 @@ r2 = [("x",Arrow (T 3) (T 4)),("w", T 2)]
 r3 :: Ctxt
 r3 = [("z",T 10),("w", T 22)]
 
+--Finalmente definmos la lista de restricciones redundantes:
+redundantes :: Constraint
+redundantes = [(Integer,Integer),(Boolean,Boolean)]
+
 {-Teniendo en cuenta las funciones auxiliares p1, p2, p3, p4 y restrS podemos definir 
 la función rest de la siguiente forma:-}
 rest :: ([Type],Expr) -> ([Type],Ctxt,Type,Constraint)
@@ -166,119 +170,133 @@ rest (l, V x) = (l ++ [fresh l],[(x,fresh l)],fresh l,[])
 rest (l, I n) = (l, [],Integer,[])
 rest (l, B b) = (l, [],Boolean,[])
 --Tipado de funciones
-rest (l, Fn x e) = (l `union` p1 (rest (l, V x)) `union` p1 (rest (l,e)),
-                   p2 (rest (l,e)) \\ [(x, p3 (rest (l, V x)))],
-                   Arrow (p3 (rest (l, V x))) (p3 (rest (l,e))),
-                   p4 (rest (l,e)))
---Tipado de operadores unarios                   
-rest (l, Succ e) = (l `union` p1 (rest (l,e)),
-                   p2 (rest (l,e)),
-                   Integer,
-                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Integer)])
-rest (l, Pred e) = (l  `union` p1 (rest (l,e)),
-                   p2 (rest (l,e)),
-                   Integer,
-                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Integer)])
-rest (l, Not e) = (l  `union` p1 (rest (l,e)),
-                   p2 (rest (l,e)),
-                   Boolean,
-                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Boolean)])
-rest (l, Iszero e) = (l  `union` p1 (rest (l,e)),
-                   p2 (rest (l,e)),
-                   Boolean,
-                   p4 (rest (l,e)) ++ [(p3 (rest (l,e)),Integer)])                   
+rest (l, Fn x e) = (l `union` p1 (rest (l, V x)) `union` p1 (rest (l,e)), --variables usadas
+                   p2 (rest (l,e)) \\ [(x, p3 (rest (l, V x)))], --contexto de e
+                   Arrow (p3 (rest (l, V x))) (p3 (rest (l,e))), --el tipo de Fn x e, es de la forma S -> T, donde T es el tipo de e y S es el tipo de la variable x
+                   p4 (rest (l,e)) \\ redundantes) --restricciones de e
+--Tipado de operadores unarios
+--Función sucesor                   
+rest (l, Succ e) = (l `union` p1 (rest (l,e)), --variables usadas
+                   p2 (rest (l,e)), --contexto de e
+                   Integer, --el tipo de Succ e es un entero
+                   (p4 (rest (l,e)) `union` [(p3 (rest (l,e)),Integer)]) \\ redundantes) --restricciones de e más la petición de que el tipo de e sea entero
+--Función predecesor
+rest (l, Pred e) = (l  `union` p1 (rest (l,e)), --variables usadas
+                   p2 (rest (l,e)), --contexto de e
+                   Integer, --el tipo de Pred e es un entero
+                   (p4 (rest (l,e)) `union` [(p3 (rest (l,e)),Integer)]) \\ redundantes) --restricciones de e más la petición de que el tipo de e sea entero
+--Negación lógica                   
+rest (l, Not e) = (l  `union` p1 (rest (l,e)), --variables usadas
+                   p2 (rest (l,e)), --contexto de e
+                   Boolean,--el tipo de Not e es un booleano
+                   (p4 (rest (l,e)) `union` [(p3 (rest (l,e)),Boolean)]) \\ redundantes)  --restricciones de e más la petición de que el tipo de e sea booleano
+--Verificador de igaualdad a cero                   
+rest (l, Iszero e) = (l  `union` p1 (rest (l,e)), --variables usadas
+                   p2 (rest (l,e)),  --contexto de e
+                   Boolean, --el tipo de Iszero e es un booleano
+                   (p4 (rest (l,e)) `union` [(p3 (rest (l,e)),Integer)]) \\ redundantes)  --restricciones de e más la petición de que el tipo de e sea booleano                
 --Tipado de operadores binarios y terciarios:
 --Suma
 rest (l, Add e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
                         Integer, 
-                        p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) --los tipos de e1 y e2 deben ser enteros
+                        (p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2)) --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) \\ redundantes) --los tipos de e1 y e2 deben ser enteros
 --Producto
 rest (l, Mul e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
                         Integer, 
-                        p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) --los tipos de e1 y e2 deben ser enteros
+                        (p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2)) --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) \\ redundantes) --los tipos de e1 y e2 deben ser enteros
 --Conjunción
 rest (l, Or e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)),
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)),
                         Boolean,
-                        p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l,e1)),Boolean),(p3 (rest (l++p1 (rest (l,e1)),e2)),Boolean)]) --los tipos de e1 y e2 deben ser booleanos
+                        (p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2)) --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l,e1)),Boolean),(p3 (rest (l++p1 (rest (l,e1)),e2)),Boolean)]) \\ redundantes) --los tipos de e1 y e2 deben ser booleanos
 --Disyunción
 rest (l, And e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
                         Boolean, 
-                        p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l,e1)),Boolean),(p3 (rest (l++p1 (rest (l,e1)),e2)),Boolean)]) --los tipos de e1 y e2 deben ser booleanos
+                        (p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2)) --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l,e1)),Boolean),(p3 (rest (l++p1 (rest (l,e1)),e2)),Boolean)]) \\ redundantes) --los tipos de e1 y e2 deben ser booleanos
 --Menor que
 rest (l, Lt e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
                         Boolean, 
-                        p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) --los tipos de e1 y e2 deben ser enteros
+                        (p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2)) --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) \\ redundantes) --los tipos de e1 y e2 deben ser enteros
 --Mayor que
 rest (l, Gt e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
                         Boolean, 
-                        p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) --los tipos de e1 y e2 deben ser enteros
+                        (p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2)) --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) \\ redundantes) --los tipos de e1 y e2 deben ser enteros
 --Igualdad numérica
 rest (l, Eq e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
                         Boolean, 
-                        p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) --los tipos de e1 y e2 deben ser enteros
+                        (p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2)) --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l,e1)),Integer),(p3 (rest (l++p1 (rest (l,e1)),e2)),Integer)]) \\ redundantes) --los tipos de e1 y e2 deben ser enteros
 --Condicional If   
 rest (l, If e e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
                         p3 (rest (l,e1)), 
-                        [(p3 (rest (l,e)),Boolean)] --restricciones del tipado de e
-                        ++ p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l++p1 (rest (l,e1)),e2)),p3 (rest (l,e1)))]) --los tipos de e1 y e2 deben ser iguales
+                        ([(p3 (rest (l,e)),Boolean)] --restricciones del tipado de e
+                        `union` p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2)) --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l++p1 (rest (l,e1)),e2)),p3 (rest (l,e1)))]) \\ redundantes ) --los tipos de e1 y e2 deben ser iguales
 --Tipado de aplicaciones
 rest (l, App e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
                         p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2)), 
                         fresh (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2))), 
-                        p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l,e1)),Arrow (p3 (rest (l,e2))) (fresh (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)))))]) {-el tipo de la 
-                        expresión e1 debe ser igual al tipo Arrow t2 Z, donde t2 es el tipo de la expresión e2 y Z es la variable fresca a la que pertenece la aplicación-}
+                        (p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2))  --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l,e1)),Arrow (p3 (rest (l ++ p1 (rest (l,e1)),e2))) (fresh (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)))))]
+                            ) \\ redundantes ) {-el tipo de la expresión e1 debe ser igual al tipo Arrow t2 Z, donde t2 es el 
+                                                                             tipo de la expresión e2 y Z es la variable fresca a la que pertenece la aplicación-}
 --Tipado de expresión Let
-rest (l, Let x e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)), 
-                        p2 (rest (l,e1)) ++ (p2 (rest (l++p1 (rest (l,e1)),e2)) \\ [(x, p3 (rest (l, V x)))]), 
-                        p3 (rest (l,e2)), 
-                        p4 (rest (l,e1)) --restricciones del tipado de e1
-                        ++ p4 (rest (l,e2)) --restricciones del tipado de e2
-                        ++ restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
-                        ++ [(p3 (rest (l,e1)),p3 (rest (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)),V x)))]) {-el tipo de la expresión 
+rest (l, Let x e1 e2) = (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)) `union` [fresh (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2)))], 
+                        (p2 (rest (l,e1)) ++ p2 (rest (l++p1 (rest (l,e1)),e2))) \\ p2 (rest (l++p1 (rest (l,e1)),V x)),
+                        p3 (rest (l++p1 (rest (l,e1)),e2)), 
+                        (p4 (rest (l,e1)) --restricciones del tipado de e1
+                        `union` p4 (rest (l++p1 (rest (l,e1)),e2)) --restricciones del tipado de e2
+                        `union` restrS (p2 (rest (l,e1))) (p2 (rest (l++p1 (rest (l,e1)),e2))) --restricciones del conjunto S definido en el pdf de la práctica
+                        `union` [(p3 (rest (l,e1)),fresh (l `union` p1 (rest (l,e1)) `union` p1 (rest (l++p1 (rest (l,e1)),e2))))]
+                        )\\ redundantes) {-el tipo de la expresión 
                         e1 debe ser igual al tipo de la variable xArrow t2 Z, donde t2 es el tipo de la expresión e2 y Z es la variable fresca a la que pertenece la aplicación-}
 
+                        
 --Ejemplo: rest ([], exp1) = ([T 0],[],Arrow T0 T0,[]), donde exp1 se define como:
 exp1 :: Expr
 exp1 = Fn "x" (V "x" )
---Ejemplo: rest ([], exp2) = , donde exp2 se define como:
+--Ejemplo: rest ([], exp2) = ([T 0,T 1],[("x",T 0),("x",T 1)],Integer,[(T 0,T 1),(T 0,Integer),(T 1,Integer)]), donde exp2 se define como:
 exp2 :: Expr
 exp2 = Add (V "x") (V "x")
 --Ejemplo: rest ([T 0, T 1, T 2], exp1) = ([T 0,T 1,T 2,T 3],[("x",T 3)],Arrow (T 3) (T 3),[]) 
+--Ejemplo: rest ([],e0) = ([T 0,T 1,T 2,T 3],[],Boolean,[(T 1,Integer),(Integer,T 2),(T 0,Boolean),(Boolean,T 3)]), donde e0 se define como:
+e0 :: Expr
+e0 = Let "x" e1 e2
+e1 :: Expr
+e1 = B True
+e2 :: Expr
+e2 = And (V "x") ( Let "y" (I 10) (Eq ( I 0 ) ( Succ (V "y" )))) --por que p4 (rest ([],e2)) es igual a [T 0, Integer, T 0, Boolean ] ?
 
 -------------------------------------
 --    Algoritmo de Unificación U   --
@@ -395,6 +413,9 @@ infer2 e = (p2 (rest ([],e)), p3 (rest ([],e)))
 exp3 :: Expr
 exp3 =  Let "x" (B True) (And (V "x") ( Let "x" (I 10) (Eq ( I 0 ) ( Succ (V "x" )))))
 ------------------------------------------------------------------------------------------------------------------
+
+exp4 :: Expr
+exp4 = Add (V "x") (V "y")
 
 {-Ejemplos:
 main > infer ( Let ”x” (B True) (And (V ”x” ) ( Let ”x” ( I 1 0 ) (Eq ( I 0 ) ( Succ
