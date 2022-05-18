@@ -367,10 +367,8 @@ t3 = Arrow (T 1) (Arrow (T 2) (T 1))
 t4 :: Type
 t4 = Arrow (T 1) (Arrow (T 2) (T 1))
 
-
 {- 2. (1 pt) Implementar la función comp :: Substitution → Substitution → Substitution
 la cual realiza la composicion de dos sustituciones.-}
-
 comp :: Substitution -> Substitution -> Substitution
 comp s1 s2 = [(fst t', subst (snd t') s2) | t' <- s1] `union`
              [(x,t) | (x,t) <- s2,  x `notElem` [y | (y, t) <- s1]] -- no c pk no jala con snd xd
@@ -389,6 +387,7 @@ t8 = [(2,T 6)]
 {- 3. (1 pt) Implementar la función unif :: Constraint → Substitution la cual obtiene el unifi-
 cador mas general (μ). Pueden consultar la implementacion realizada durante el laboratorio.
 -}
+
 -- sacamos el unico elmento con la fn auxiliar
 unif :: Constraint -> Substitution
 unif c = u where [u] = unifaux c
@@ -406,22 +405,26 @@ unifaux' :: Type -> Type -> [Substitution]
 unifaux' (T x) (T y)
  | x == y = [[]]
  | otherwise = [[(x, T y)]]
+
 -- verificamos que no esté para hacer la sustitucion
 unifaux' (T x) t
  | x `elem` tvars t = error "No se puede ):, no son disjuntos"
  | otherwise = return [(x, t)]
+
 -- igual que le anterior
 unifaux' t (T x)
  | x `elem` tvars t = error "No se puede ):, no son disjuntos"
  | otherwise = return [(x, t)]
+
 -- recursion sobre los tipos
 unifaux' (Arrow t1 t2) (Arrow t3 t4) = [comp s1 s2 | -- analogo al anterior
                                        s1 <- unifaux' t1 t3,
                                        s2 <- unifaux' (subst t2 s1) (subst t4 s1)]
+
 unifaux' t s
  | t == s = [[]]
  | otherwise = error "No se puede hacer la unificación :("
-
+ 
 --Ejemplo: unif ([(T 0,T 1),(T 0,Integer),(T 1,Integer),(T 1,T 0),(Integer,Integer)]) = [(0,T 1),(1,Integer)]
 
 ------------------------------------------
@@ -445,9 +448,10 @@ ctxsubst (ctx,sbs) = [(x,subst t sbs) | (x,t) <- ctx]
 {-Así, finalmente podemos definir infer de la siguiente forma:-}
 
 infer :: Expr -> (Ctxt, Type)
+infer (Fn x e) = (ctxsubst (p2 (rest ([],Fn x e)), unifrestr (Fn x e)),subst (p3 (rest ([],Fn x e))) (unif (p4 (rest ([],e))))) 
 infer e = (ctxsubst(p2 (rest ([],e)), unifrestr e),p3 (rest ([],e)))
 
---Ejemplo:  infer prueba1 = ([],Boolean), donde prueba1se define como:
+--Ejemplo:  infer prueba1 = ([],Boolean), donde prueba1 se define como:
 prueba1 :: Expr
 prueba1 = Let "x" (B True) (And (V "x" ) ( Let "y" (I 10) (Eq (I 0) (Succ (V "y" )))))
 
@@ -455,19 +459,15 @@ prueba1 = Let "x" (B True) (And (V "x" ) ( Let "y" (I 10) (Eq (I 0) (Succ (V "y"
 prueba2 :: Expr
 prueba2 = Or prueba1 (And (V "z") (V "w"))
 
---Ejemplo: infer pruebadefuego = ([("d:",Boolean),("d:",Boolean),("z",Boolean),("w",Boolean),("a",Boolean),("b",Boolean),("d",Boolean),("f",Integer),("XD",Boolean)],Boolean), donde pruebadefuego se define como:
+--Ejemplo: infer pruebadefuego = ([("d:",Boolean),("():",Boolean),("z",Boolean),("w",Boolean),("a",Boolean),("b",Boolean),("d",Boolean),("f",Integer),("XD",Boolean)],Boolean), donde pruebadefuego se define como:
 pruebadefuego :: Expr
-pruebadefuego = Let "D:" (And (V "d:") (V "(:")) (And (V "D:") (And (Or (And (Let "a" prueba1 (And prueba2 (V "a"))) (V "b")) (If (And (B True) (B True)) (Let "g" e1 e2) (B False))) (V "XD")))
-
+pruebadefuego = Fn ":D" (And (V ":D") (Let "D:" (And (V "d:") (V "(:")) (And (V "D:") (And (Or (And (Let "a" prueba1 (And prueba2 (V "a"))) (V "b")) (If (And (B True) (B True)) (Let "g" e1 e2) (B False))) (V "XD")))))
 --e1 :: Expr
 --e1 = B True
 --e2 :: Expr
 --e2 = And (V "d") ( Let "e" (I 10) (Eq ( I 0 ) ( Succ (V "f" ))))
-
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 -----------------------------------
 --stack ghci src/Practica2.Minhs.hs
 -----------------------------------
-
 --FIN
