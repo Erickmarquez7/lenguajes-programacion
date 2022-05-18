@@ -389,33 +389,35 @@ t8 = [(2,T 6)]
 {- 3. (1 pt) Implementar la función unif :: Constraint → Substitution la cual obtiene el unifi-
 cador mas general (μ). Pueden consultar la implementacion realizada durante el laboratorio.
 -}
-
+-- sacamos el unico elmento con la fn auxiliar
 unif :: Constraint -> Substitution
 unif c = u where [u] = unifaux c
 
+-- fn auxiliar para que compone las sutituciones
 unifaux :: Constraint -> [Substitution]
 unifaux [] = [[]]
 unifaux (t: ts) = [comp s1 s2 |
                           s1 <- unifaux' (fst t) (snd t),
                           s2 <- unifaux [(subst (fst t) s1, subst (snd t) s1) | t <- ts]]
 
+-- para la fn auxiliar componer el primer elemento
 unifaux' :: Type -> Type -> [Substitution]
+-- si coinciden no sustituye ya que no son ajenos
 unifaux' (T x) (T y)
  | x == y = [[]]
  | otherwise = [[(x, T y)]]
-
+-- verificamos que no esté para hacer la sustitucion
 unifaux' (T x) t
  | x `elem` tvars t = error "No se puede ):, no son disjuntos"
  | otherwise = return [(x, t)]
-
+-- igual que le anterior
 unifaux' t (T x)
  | x `elem` tvars t = error "No se puede ):, no son disjuntos"
  | otherwise = return [(x, t)]
-
+-- recursion sobre los tipos
 unifaux' (Arrow t1 t2) (Arrow t3 t4) = [comp s1 s2 | -- analogo al anterior
                                        s1 <- unifaux' t1 t3,
                                        s2 <- unifaux' (subst t2 s1) (subst t4 s1)]
-
 unifaux' t s
  | t == s = [[]]
  | otherwise = error "No se puede hacer la unificación :("
