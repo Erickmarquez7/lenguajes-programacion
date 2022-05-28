@@ -1,3 +1,4 @@
+-- {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Practica3.MiniC where
@@ -91,12 +92,13 @@ newAddress m = L (minFree (map fst (revMemo m)))
 newAddress [(0,I 21),(1,Void),(2,I 12),(1,B True)] = Exception: Corrupted Memory
 -}
 
+
 --2. acces. Dada una dirección de memoria, devuelve el valor contenido en la celda con tal
 -- dirección, en caso de no encontrarla debe devolver Nothing.
 access :: Address -> Memory -> Maybe Value
 access _ [] = Nothing
-access i m = if null ([x | x <- revMemo m, fst x == i]) 
-                then Nothing 
+access i m = if null ([x | x <- revMemo m, fst x == i])
+                then Nothing
                     else Just (snd (head [x | x <- revMemo m, fst x == i]))
 
 {-Ejemplos:
@@ -118,8 +120,8 @@ update (i,valor) [] = case valor of B False -> Nothing
 update (i,valor) m  = case valor of B False -> Just ([x | x <- revMemo m, i /= fst x] ++ [(i,B False)])
                                     B True  -> Just ([x | x <- revMemo m, i /= fst x] ++ [(i,B True)])
                                     I n     -> Just ([x | x <- revMemo m, i /= fst x] ++ [(i,I n)])
-                                    Fn a b  -> Just ([x | x <- revMemo m, i /= fst x] ++ [(i,Fn a b)])      
-                                    valor   -> error "Memory can only store values"                           
+                                    Fn a b  -> Just ([x | x <- revMemo m, i /= fst x] ++ [(i,Fn a b)])
+                                    valor   -> error "Memory can only store values"
 
 {-Ejemplos:
                                   update (3,B True) [] = Nothing
@@ -191,18 +193,8 @@ subst (V x) (id, e) | x == id = e
 subst (I n) _ = I n
 subst (B b) _ = B b
 subst (Fn x e) s |              x == fst s = error "Se hará una sustitución en una variable ligada, busca una alfa equivalencia de tu expresión Fn"
-                 | x `elem` frVars (snd s) = error "La expresion a sustituir tiene una variable con el mismo nombre que una ligada a una expresión Fn, busca una alfa equivalencia" 
+                 | x `elem` frVars (snd s) = error "La expresion a sustituir tiene una variable con el mismo nombre que una ligada a una expresión Fn, busca una alfa equivalencia"
                  |               otherwise = Fn x (subst e s)
-{-subst (Fn a b) e
-    | a == y = Fn a e
-    | (a /= y) && notElem (V a) (frVars es) = Fn a (subst e s)
-    | (a /= y) && elem (V a) (frVars es) = Fn (incVar a) (subst e s)
-    | otherwise = Fn a e
-   Me confundió xd
-  subst (Fn v e1) (y,e)
-   | elem v (frVars e) && (v == y) = Fn y (subst e1 (y, e))
-   | notElem x (frVars e) && (x /= y) = Fn x (subst e1 (y, e))
-   | otherwise = error "Substitution not in free variables."-}
 subst (Succ c) s = Succ (subst c s)
 subst (Pred p) s = Pred (subst p s)
 subst (Add a b) s = Add (subst a s) (subst b s)
@@ -216,12 +208,8 @@ subst (Gt p q) s = Gt (subst p s) (subst q s)
 subst (Eq p q) s = Eq (subst p s) (subst q s)
 subst (If c a b) s = If (subst c s) (subst a s) (subst b s)
 subst (Let x e1 e2) (y,e) |            x == y = error "Se hará una sustitución en una variable ligada, busca una alfa equivalencia de una expresión Let"
-                          | x `elem` frVars e = error "La expresion a sustituir tiene una variable con el mismo nombre que una ligada a una expresión Let, busca una alfa equivalencia"       
+                          | x `elem` frVars e = error "La expresion a sustituir tiene una variable con el mismo nombre que una ligada a una expresión Let, busca una alfa equivalencia"
                           |         otherwise = Let x (subst e1 (y,e)) (subst e2 (y,e))
-{-subst (Let x e1 e2) (y, e) --la idea era la misma para fn xd
-    | notElem x (frVars e) && (x == y) = Let y (subst e1 (y, e)) (subst e2 (y, e))
-    | notElem x (frVars e) && (x /= y) = Let x (subst e1 (y, e)) (subst e2 (y, e))
-    | otherwise = error "No c puede."-}
 subst (L i) s = L i
 subst (Alloc a) s = Alloc (subst a s)
 subst (Dref a) s = Dref (subst a s)
@@ -231,11 +219,19 @@ subst (Seq a b) s = Seq (subst a s) (subst b s)
 subst (While a b) s = While (subst a s) (subst b s)
 subst (App a b) s = App (subst a s) (subst b s)
 
+{-Ejemplos:
+                           subst (Add (V "x" ) ( I 5 ) ) ("x", I 10 ) = Add ( I 10 ) ( I 5 )
+    subst ( Let "x" ( I 1 ) (V "x" ) ) ( "y" , Add (V "x" ) ( I 5 ) ) = Let "x1" ( I 1 ) (V "x1" ) -- se busca alfa equivalencias
+     subst ( Assig (L 2 ) (Add ( I 0 ) (V "z" ) ) ) ( "z" , B False ) = ( Assig (L 2 ) (Add ( I 0 ) (B False ) ) )
+-}
+
+---------------------- HASTA AQUI VAMOS BIEN xd ---------------------
+
+
 --3. eval1. Re implementa esta función para que dada una memoria y una expresión, devuelva la reducción a un paso,
 --es decir, eval1 (m, e) = (m’, e’) si y sólo si <m, e> → <m’,e’>
 
 --Consideremos la función auxiliar auxeval1 :: Expr -> Expr, se definió en la Práctica 1, adecuándola a este módulo tenemos que:
-
 auxeval1 :: Expr -> Expr
 -- V String
 auxeval1 (V x) = error "No se pueden evaluar expresiones con variables libres"
@@ -258,6 +254,7 @@ auxeval1 (Add (I n) (I m)) = I (n+m)
 auxeval1 (Add (B b) (I n)) = Add (B b) (I n) --Término bloqueado
 auxeval1 (Add (I n) (B b)) = Add (I n) (B b) --Término bloqueado
 auxeval1 (Add (B b) (B c)) = Add (B b) (B c) --Término bloqueado
+
 auxeval1 (Add (I n) e2) = Add (I n) (auxeval1 e2)
 auxeval1 (Add (B b) e2) = Add (B b) (auxeval1 e2) --Término que será bloqueado
 auxeval1 (Add e1 e2) = Add (auxeval1 e1) e2
@@ -266,6 +263,7 @@ auxeval1 (Mul (I n) (I m)) = I (n*m)
 auxeval1 (Mul (B b) (I n)) = Mul (B b) (I n) --Término bloqueado
 auxeval1 (Mul (I n) (B b)) = Mul (I n) (B b) --Término bloqueado
 auxeval1 (Mul (B b) (B c)) = Mul (B b) (B c) --Término bloqueado
+
 auxeval1 (Mul (I n) e2) = Mul (I n) (auxeval1 e2)
 auxeval1 (Mul (B b) e2) = Mul (B b) (auxeval1 e2) --Término que será bloqueado
 auxeval1 (Mul e1 e2) = Mul (auxeval1 e1) e2
@@ -283,6 +281,7 @@ auxeval1 (Iszero e) = Iszero (auxeval1 e)
 auxeval1 (And (B True) (B True)) = B True
 auxeval1 (And (B False) (B b)) = B False
 auxeval1 (And (B b) (B False)) = B False
+
 auxeval1 (And (B b) (I n)) = And (B b) (I n) --Término bloqueado
 auxeval1 (And (B b) e2) = And (B b) (auxeval1 e2)
 auxeval1 (And (I n) (B b)) = And (I n) (B b) --Término bloqueado
@@ -293,6 +292,7 @@ auxeval1 (And e1 e2) = And (auxeval1 e1) e2
 auxeval1 (Or (B True) (B b)) = B True
 auxeval1 (Or (B b) (B True)) = B True
 auxeval1 (Or (B False) (B False)) = B False
+
 auxeval1 (Or (B b) (I n)) = Or (B b) (I n) --Término bloqueado
 auxeval1 (Or (B b) e2) = Or (B b) (auxeval1 e2)
 auxeval1 (Or (I n) (B b)) = Or (I n) (B b) --Término bloqueado
@@ -305,14 +305,14 @@ auxeval1 (Gt (I n) (B b)) = Gt (I n) (B b) --Término bloqueado
 auxeval1 (Gt (B b) (I n)) = Gt (B b) (I n) --Término bloqueado
 auxeval1 (Gt (B b) e2 ) = Gt (B b) (auxeval1 e2) --Término que será bloqueado
 auxeval1 (Gt (I n) e2 ) = Gt (I n) (auxeval1 e2)
-auxeval1 (Gt e1 e2 ) = Gt (auxeval1 e1) e2 
+auxeval1 (Gt e1 e2 ) = Gt (auxeval1 e1) e2
 --Lt Expr Expr 
 auxeval1 (Lt (I n) (I m)) =  if n - m < 0 then B True else B False
 auxeval1 (Lt (I n) (B b)) = Lt (I n) (B b) --Término bloqueado
 auxeval1 (Lt (B b) (I n)) = Lt (B b) (I n) --Término bloqueado
 auxeval1 (Lt (B b) e2) = Lt (B b) (auxeval1 e2) --Término que será bloqueado
 auxeval1 (Lt (I n) e2) = Lt (I n) (auxeval1 e2)
-auxeval1 (Lt e1 e2) = Lt (auxeval1 e1) e2 
+auxeval1 (Lt e1 e2) = Lt (auxeval1 e1) e2
 --Eq Expr Expr 
 auxeval1 (Eq (I n) (I m)) =  if n - m == 0 then B True else B False
 auxeval1 (Eq (I n) (B b)) = Eq (I n) (B b) --Término bloqueado
@@ -321,17 +321,35 @@ auxeval1 (Eq (B b) e2) = Eq (B b) (auxeval1 e2) --Término que será bloqueado
 auxeval1 (Eq (I n) e2) = Eq (I n) (auxeval1 e2)
 auxeval1 (Eq e1 e2) = Eq (auxeval1 e1) e2
 -- If Expr Expr Expr
-auxeval1 (If (B True) e1 e2) = e1 
+auxeval1 (If (B True) e1 e2) = e1
 auxeval1 (If (B False) e1 e2) = e2
 auxeval1 (If (I n) e1 e2) = If (I n) e1 e2 --Término bloqueado
-auxeval1 (If e e1 e2) = If (auxeval1 e) e1 e2 
+auxeval1 (If e e1 e2) = If (auxeval1 e) e1 e2
 -- Let binario
 auxeval1 (Let x (B b) e) = subst e (x, B b)
 auxeval1 (Let x (I n) e) = subst e (x, I n)
 auxeval1 (Let x e1  e2) = Let x (auxeval1 e1) e2
 
-{- ¿ | L Int
-    | Alloc Expr
+auxeval1 (L i) = L i
+
+-- necesitamos la memoria para poder guardarla
+--auxeval1 (Alloc e) = (NewAddress m e)-- donde m es la memoria
+
+-- necesitamos la memoria para poder guardarla
+--auxeval1 (Dref e) = (acces m e) -- algo mas o menos así?, porque accedemos a la memoria
+
+-- igual necesiatamos la memorria, pk actualizamos la memoria
+-- auxeval1 (Assig e1 e2) = update () update de algo xd
+
+auxeval1 Void = Void
+
+-- auxeval1 (Seq e1 e2) = 
+--auxeval1 (While (B True) e) = ?
+auxeval1 (While (B False) e) = e -- no sigue evaluando
+auxeval1 (While (I n) e) = e -- Termino BLoqueado
+
+
+{- ¿| Alloc Expr = 
     | Dref Expr
     | Assig Expr Expr
     | Void
@@ -365,7 +383,12 @@ eval1 (m, B b) = (m, B b)
 eval1 (m, Fn x e) = eval1 (m, Fn x e)
 eval1 (m, Succ (Pred (I n))) = (m, I n)
 eval1 (m, Succ (I n)) = (m, I (n+1))
---eval1 (m, Succ a) = (m, Succ (eval1 (m, a)))-}
+--eval1 (m, Succ a) = (m, Succ (eval1 (m, a)))
+
+Aqui si jalaría el Dref y esas cosas xd
+eval1 (m, Deref e) = (m, access e m)
+
+-}
 
 ----------------------------------------------------------------------------------------------------------------
 
@@ -411,8 +434,64 @@ evals = error "D:"
 --programa tal que evale e = e’ syss e →e’ y e’ e un valor. En caso de que e’ no sea un valor deberá mostrar
 --un mensaje de error particular del operador que lo causó.
 evale :: Expr -> Expr
-evale = error "D:"
+evale (V x) = V x
+evale (I n) = I n
+evale (B b) = B b
+evale (Fn _ _)= error "No hay aplicaciones"
+--evale (Fn e1 e1) = evals ?
+evale (Succ (B b)) = error "Succ espera un numero"
+--evale (Succ (I i)) = evals ?
+evale (Pred (B b)) = error "Pred espera un numero"
 
+
+evale (Add (B b) _) = error "Add espera dos numeros"
+evale (Add _ (B b)) = error "Add espera dos numeros"
+--evale (Add (I i) (I i2)) = evals (m, Add (I i) (I i2))?
+
+evale (Mul (B b) _) = error "Mul espera dos numeros"
+evale (Mul _ (B b)) = error "Mul espera dos numeros"
+-- evale ?
+
+evale (Not (I i)) = error "Not espera un booleano"
+
+evale (Iszero (B b)) = error "isZero espera un numero"
+
+evale (And (I i) _) = error "And espera dos booleanos"
+evale (And _ (I i)) = error "And espera dos booleanos"
+
+evale (Or (I i) _) = error "Or espera dos booleanos"
+evale (Or _ (I i)) = error "Or espera dos booleanos"
+
+evale (Lt (B b) _) = error "Lt espera dos numeros"
+evale (Lt _ (B b)) = error "Lt espera dos numeros"
+
+evale (Gt (B b) _) = error "Gt espera dos numeros"
+evale (Gt _ (B b)) = error "Gt espera dos numeros"
+
+evale (Eq (B b) _) = error "Gt espera dos numeros"
+evale (Eq _ (B b)) = error "Gt espera dos numeros"
+
+evale (If (I i) _ _) = error "If espera un booleano en el primer argumento"
+
+evale (App e _) = error "App espera una funcion en el primer argumento"
+{-data Expr = V Identifier | I Int | B Bool
+            | Fn Identifier Expr
+            | Succ Expr | Pred Expr
+            | Add Expr Expr | Mul Expr Expr
+            | Not Expr | Iszero Expr
+            | And Expr Expr | Or Expr Expr
+            | Lt Expr Expr | Gt Expr Expr | Eq Expr Expr
+            | If Expr Expr Expr
+            | Let Identifier Expr Expr
+            | L Int
+            | Alloc Expr
+            | Dref Expr
+            | Assig Expr Expr
+            | Void
+            | Seq Expr Expr
+            | While Expr Expr
+            | App Expr Expr deriving (Eq, Show)
+-}
 
 
 -----------------------------------
