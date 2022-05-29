@@ -1,17 +1,20 @@
--- {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use second" #-}
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
+{-# HLINT ignore "Use bimap" #-}
 
 module Practica3.MiniC where
 import Data.List
 import Data.Maybe
 -----------------------------------------------------------
---      Lenguajes de Programación y sus Paradigmas       --  
------------------------------------------------------------            
+--      Lenguajes de Programación y sus Paradigmas       --
+-----------------------------------------------------------
 --                      Práctica 3                       --
 -----------------------------------------------------------
 --Integrantes:                                           --
 --1. Bernal Márquez Erick                       317042522--
---2. Deloya Andrade Ana Valeria                 317277582-- 
+--2. Deloya Andrade Ana Valeria                 317277582--
 --3. Villegas Barrón César                      314002033--
 -----------------------------------------------------------
 
@@ -52,7 +55,7 @@ type Memory = [Cell]
 -------------------
 
 {-En toda esta sección de la práctica se usará la función auxiliar revMemo la cual verifica si una memoria está corrupta
- (es decir, revMemo verifica si existen dos celdas cond dos primeras entradas iguales).-}
+ (es decir, revMemo verifica si existen dos celdas con dos primeras entradas iguales).-}
 revMemo :: Memory -> Memory
 revMemo [] = []
 revMemo m = if fst (head m) `elem` map fst (tail m) then error "Corrupted Memory" else head m : revMemo (tail m)
@@ -220,218 +223,248 @@ subst (While a b) s = While (subst a s) (subst b s)
 subst (App a b) s = App (subst a s) (subst b s)
 
 {-Ejemplos:
-                           subst (Add (V "x" ) ( I 5 ) ) ("x", I 10 ) = Add ( I 10 ) ( I 5 )
-    subst ( Let "x" ( I 1 ) (V "x" ) ) ( "y" , Add (V "x" ) ( I 5 ) ) = Let "x1" ( I 1 ) (V "x1" ) -- se busca alfa equivalencias
-     subst ( Assig (L 2 ) (Add ( I 0 ) (V "z" ) ) ) ( "z" , B False ) = ( Assig (L 2 ) (Add ( I 0 ) (B False ) ) )
+                   subst (Add (V "x") (I 5)) ("x",I 10) = Add (I 10) (I 5)
+  subst (Let "x" (I 1) (V "x")) ("y",Add (V "x") (I 5)) = Let "x1" (I 1) (V "x1") -- se busca alfa equivalencias
+  subst (Assig (L 2) (Add (I 0) (V "z"))) ("z",B False) = (Assig (L 2) (Add (I 0) (B False)))
 -}
-
----------------------- HASTA AQUI VAMOS BIEN xd ---------------------
-
 
 --3. eval1. Re implementa esta función para que dada una memoria y una expresión, devuelva la reducción a un paso,
 --es decir, eval1 (m, e) = (m’, e’) si y sólo si <m, e> → <m’,e’>
 
---Consideremos la función auxiliar auxeval1 :: Expr -> Expr, se definió en la Práctica 1, adecuándola a este módulo tenemos que:
-auxeval1 :: Expr -> Expr
--- V String
-auxeval1 (V x) = error "No se pueden evaluar expresiones con variables libres"
--- I Int
-auxeval1 (I n) = I n
--- B Bool
-auxeval1 (B b) = B b
--- Fn Identifier Expr
-auxeval1 (Fn x e) = Fn x e --Término bloqueado (las funciones son valores)
--- Succ Expr
-auxeval1 (Succ (I n)) = I (n+1)
-auxeval1 (Succ (B b)) = Succ (B b) --Término bloqueado
-auxeval1 (Succ e) = Succ (auxeval1 e)
--- Pred Expr
-auxeval1 (Pred (I n)) = I (n-1)
-auxeval1 (Pred (B b)) = Pred (B b) --Término bloqueado
-auxeval1 (Pred e) = Pred (auxeval1 e)
--- Add Expr Expr
-auxeval1 (Add (I n) (I m)) = I (n+m)
-auxeval1 (Add (B b) (I n)) = Add (B b) (I n) --Término bloqueado
-auxeval1 (Add (I n) (B b)) = Add (I n) (B b) --Término bloqueado
-auxeval1 (Add (B b) (B c)) = Add (B b) (B c) --Término bloqueado
-
-auxeval1 (Add (I n) e2) = Add (I n) (auxeval1 e2)
-auxeval1 (Add (B b) e2) = Add (B b) (auxeval1 e2) --Término que será bloqueado
-auxeval1 (Add e1 e2) = Add (auxeval1 e1) e2
--- Mul Expr Expr
-auxeval1 (Mul (I n) (I m)) = I (n*m)
-auxeval1 (Mul (B b) (I n)) = Mul (B b) (I n) --Término bloqueado
-auxeval1 (Mul (I n) (B b)) = Mul (I n) (B b) --Término bloqueado
-auxeval1 (Mul (B b) (B c)) = Mul (B b) (B c) --Término bloqueado
-
-auxeval1 (Mul (I n) e2) = Mul (I n) (auxeval1 e2)
-auxeval1 (Mul (B b) e2) = Mul (B b) (auxeval1 e2) --Término que será bloqueado
-auxeval1 (Mul e1 e2) = Mul (auxeval1 e1) e2
--- Not Expr
-auxeval1 (Not (B False)) = B True
-auxeval1 (Not (B True)) = B False
-auxeval1 (Not (I n)) = Not (I n) --Término bloqueado
-auxeval1 (Not e) = Not (auxeval1 e)
--- Iszero Expr
-auxeval1 (Iszero (I 0)) = B True
-auxeval1 (Iszero (I n)) = B False
-auxeval1 (Iszero (B b)) = Iszero (B b) --Término bloqueado
-auxeval1 (Iszero e) = Iszero (auxeval1 e)
--- Conjunción
-auxeval1 (And (B True) (B True)) = B True
-auxeval1 (And (B False) (B b)) = B False
-auxeval1 (And (B b) (B False)) = B False
-
-auxeval1 (And (B b) (I n)) = And (B b) (I n) --Término bloqueado
-auxeval1 (And (B b) e2) = And (B b) (auxeval1 e2)
-auxeval1 (And (I n) (B b)) = And (I n) (B b) --Término bloqueado
-auxeval1 (And (I n) (I m)) = And (I n) (I m) --Término bloqueado
-auxeval1 (And (I n) e2) = And (I n) (auxeval1 e2)  --Término que será bloqueado
-auxeval1 (And e1 e2) = And (auxeval1 e1) e2
--- Disyunción 
-auxeval1 (Or (B True) (B b)) = B True
-auxeval1 (Or (B b) (B True)) = B True
-auxeval1 (Or (B False) (B False)) = B False
-
-auxeval1 (Or (B b) (I n)) = Or (B b) (I n) --Término bloqueado
-auxeval1 (Or (B b) e2) = Or (B b) (auxeval1 e2)
-auxeval1 (Or (I n) (B b)) = Or (I n) (B b) --Término bloqueado
-auxeval1 (Or (I n) (I m)) = Or (I n) (I m) --Término bloqueado
-auxeval1 (Or (I n) e2) = Or (I n) (auxeval1 e2) --Término que será bloqueado
-auxeval1 (Or e1 e2) = Or (auxeval1 e1) e2
---Gt Expr Expr
-auxeval1 (Gt (I n) (I m)) =  if n - m > 0 then B True else B False
-auxeval1 (Gt (I n) (B b)) = Gt (I n) (B b) --Término bloqueado
-auxeval1 (Gt (B b) (I n)) = Gt (B b) (I n) --Término bloqueado
-auxeval1 (Gt (B b) e2 ) = Gt (B b) (auxeval1 e2) --Término que será bloqueado
-auxeval1 (Gt (I n) e2 ) = Gt (I n) (auxeval1 e2)
-auxeval1 (Gt e1 e2 ) = Gt (auxeval1 e1) e2
---Lt Expr Expr 
-auxeval1 (Lt (I n) (I m)) =  if n - m < 0 then B True else B False
-auxeval1 (Lt (I n) (B b)) = Lt (I n) (B b) --Término bloqueado
-auxeval1 (Lt (B b) (I n)) = Lt (B b) (I n) --Término bloqueado
-auxeval1 (Lt (B b) e2) = Lt (B b) (auxeval1 e2) --Término que será bloqueado
-auxeval1 (Lt (I n) e2) = Lt (I n) (auxeval1 e2)
-auxeval1 (Lt e1 e2) = Lt (auxeval1 e1) e2
---Eq Expr Expr 
-auxeval1 (Eq (I n) (I m)) =  if n - m == 0 then B True else B False
-auxeval1 (Eq (I n) (B b)) = Eq (I n) (B b) --Término bloqueado
-auxeval1 (Eq (B b) (I n)) = Eq (B b) (I n) --Término bloqueado
-auxeval1 (Eq (B b) e2) = Eq (B b) (auxeval1 e2) --Término que será bloqueado
-auxeval1 (Eq (I n) e2) = Eq (I n) (auxeval1 e2)
-auxeval1 (Eq e1 e2) = Eq (auxeval1 e1) e2
--- If Expr Expr Expr
-auxeval1 (If (B True) e1 e2) = e1
-auxeval1 (If (B False) e1 e2) = e2
-auxeval1 (If (I n) e1 e2) = If (I n) e1 e2 --Término bloqueado
-auxeval1 (If e e1 e2) = If (auxeval1 e) e1 e2
--- Let binario
-auxeval1 (Let x (B b) e) = subst e (x, B b)
-auxeval1 (Let x (I n) e) = subst e (x, I n)
-auxeval1 (Let x e1  e2) = Let x (auxeval1 e1) e2
-
-auxeval1 (L i) = L i
-
--- necesitamos la memoria para poder guardarla
---auxeval1 (Alloc e) = (NewAddress m e)-- donde m es la memoria
-
--- necesitamos la memoria para poder guardarla
---auxeval1 (Dref e) = (acces m e) -- algo mas o menos así?, porque accedemos a la memoria
-
--- igual necesiatamos la memorria, pk actualizamos la memoria
--- auxeval1 (Assig e1 e2) = update () update de algo xd
-
-auxeval1 Void = Void
-
--- auxeval1 (Seq e1 e2) = 
---auxeval1 (While (B True) e) = ?
-auxeval1 (While (B False) e) = e -- no sigue evaluando
-auxeval1 (While (I n) e) = e -- Termino BLoqueado
-
-
-{- ¿| Alloc Expr = 
-    | Dref Expr
-    | Assig Expr Expr
-    | Void
-    | Seq Expr Expr
-    | While Expr Expr
-    | App Expr Expr deriving (Eq, Show) ?-}
-
-
---También consideremos la función auxiliar loC la cual solamente recibe un lugar de memoria y regresa el entero perteneciente a dicho lugar:
+--Primero consideremos la función auxiliar loC la cual solamente recibe un lugar de memoria y regresa el entero 
+--perteneciente a dicho lugar (se usará para la definicón de 'eval1' para expresiones tipo Alloc):
 loC :: Expr -> Address
 loC (L i) = i
 loC e = error "loC está definida únicamente para lugares de memeoria"
 
---Teniendo la función auxiliar auxeval1 definimos eval1 como:
+{-Vemos que implementar la función eval1 :: (Memory, Expr) -> (Memory, Expr) es similar a lo que se hizo en la primera práctica solo 
+ que esta vez se debe tomar en cuenta la memoria y las nuevas expresiones. Teniendo en cuenta las definiciones de la sección 5.1 de las
+ Notas de Clase 9 y la sección 1.2 de las Notas de Clase 6 podemos definir eval1 como:-}
 eval1 :: (Memory, Expr) -> (Memory, Expr)
-eval1 (m, L entero) = error "¿Vas a evaluar el lugar de una celda de memoria e_e?"
---eval1 (m, Alloc expr) = case expr of I n -> (m ++ (loC (newAddress m), I n), ¿?)
---eval1  Dref expresión = ¿?
--- Assig expresión1 expresión2 = ¿?
---eval1 Void = ¿?
--- eva11 Seq expresión1 expresión2 = ¿?
--- eval1 While expresión1 expresión2 = ¿?
--- App expresión1 expresión2 = ¿?
-eval1 (m, expr) = (m,auxeval1 expr) -- <- Todos los demás casos que no interfieren con la memoria descritos en auxeval1
+-- V String
+eval1 (m,V x) = error "No se pueden evaluar expresiones con variables libres"
+-- I Int
+eval1 (m,I n) = (m,I n)
+-- B Bool
+eval1 (m,B b) = (m,B b)
+-- Fn Identifier Expr
+eval1 (m,Fn x e) = (m,Fn x e) --Término bloqueado (las funciones son valores)
+-- Succ Expr
+eval1 (m,Succ (I n)) = (m,I (n+1))
+eval1 (m,Succ (B b)) = (m,Succ (B b)) --Término bloqueado
+eval1 (m,Succ e) = (fst (eval1 (m,e)), Succ (snd (eval1 (m,e))))
+-- Pred Expr
+eval1 (m,Pred (I n)) = (m,I (n-1))
+eval1 (m,Pred (B b)) = (m,Pred (B b)) --Término bloqueado
+eval1 (m,Pred e) = (fst (eval1 (m,e)),Pred (snd (eval1 (m,e))))
+-- Add Expr Expr
+eval1 (l,Add (I n) (I m)) = (l,I (n+m))
+eval1 (m,Add (B b) (I n)) = (m,Add (B b) (I n)) --Término bloqueado
+eval1 (m,Add (I n) (B b)) = (m,Add (I n) (B b)) --Término bloqueado
+eval1 (m,Add (B b) (B c)) = (m,Add (B b) (B c)) --Término bloqueado
+eval1 (m,Add (I n) e2) = (fst (eval1 (m,e2)),Add (I n) (snd (eval1 (m,e2))))
+eval1 (m,Add (B b) e2) = (fst (eval1 (m,e2)),Add (B b) (snd (eval1 (m,e2)))) --Término que será bloqueado
+eval1 (m,Add e1 e2) = (fst (eval1 (m,e1)),Add (snd (eval1 (m,e1))) e2)
+-- Mul Expr Expr
+eval1 (l,Mul (I n) (I m)) = (l,I (n*m))
+eval1 (m,Mul (B b) (I n)) = (m,Mul (B b) (I n)) --Término bloqueado
+eval1 (m,Mul (I n) (B b)) = (m,Mul (I n) (B b)) --Término bloqueado
+eval1 (m,Mul (B b) (B c)) = (m,Mul (B b) (B c)) --Término bloqueado
+eval1 (m,Mul (I n) e2) = (fst (eval1 (m,e2)),Mul (I n) (snd (eval1 (m,e2))))
+eval1 (m,Mul (B b) e2) = (fst (eval1 (m,e2)),Mul (B b) (snd (eval1 (m,e2)))) --Término que será bloqueado
+eval1 (m,Mul e1 e2) = (fst (eval1 (m,e2)),Mul (snd (eval1 (m,e1))) e2)
+-- Not Expr
+eval1 (m,Not (B False)) = (m,B True)
+eval1 (m,Not (B True)) = (m,B False)
+eval1 (m,Not (I n)) = (m,Not (I n)) --Término bloqueado
+eval1 (m,Not e) = (fst (eval1 (m,e)),Not (snd (eval1 (m,e))))
+-- Iszero Expr
+eval1 (m,Iszero (I 0)) = (m,B True)
+eval1 (m,Iszero (I n)) = (m,B False)
+eval1 (m,Iszero (B b)) = (m,Iszero (B b)) --Término bloqueado
+eval1 (m,Iszero e) = (fst (eval1 (m,e)),Iszero (snd (eval1 (m,e))))
+-- And Expr Expr
+eval1 (m,And (B True) (B True)) = (m,B True)
+eval1 (m,And (B False) (B b)) = (m,B False)
+eval1 (m,And (B b) (B False)) = (m,B False)
+eval1 (m,And (B b) (I n)) = (m,And (B b) (I n)) --Término bloqueado
+eval1 (m,And (B b) e2) = (fst (eval1 (m,e2)),And (B b) (snd (eval1 (m,e2))))
+eval1 (m,And (I n) (B b)) = (m,And (I n) (B b)) --Término bloqueado
+eval1 (l,And (I n) (I m)) = (l,And (I n) (I m)) --Término bloqueado
+eval1 (m,And (I n) e2) = (fst (eval1 (m,e2)),And (I n) (snd (eval1 (m,e2))))  --Término que será bloqueado
+eval1 (m,And e1 e2) = (fst (eval1 (m,e1)),And (snd (eval1 (m,e1))) e2)
+-- Or Expr Expr 
+eval1 (m,Or (B True) (B b)) = (m,B True)
+eval1 (m,Or (B b) (B True)) = (m,B True)
+eval1 (m,Or (B False) (B False)) = (m,B False)
+eval1 (m,Or (B b) (I n)) = (m,Or (B b) (I n)) --Término bloqueado
+eval1 (m,Or (B b) e2) = (fst (eval1 (m,e2)),Or (B b) (snd (eval1 (m,e2))))
+eval1 (m,Or (I n) (B b)) = (m,Or (I n) (B b)) --Término bloqueado
+eval1 (l,Or (I n) (I m)) = (l,Or (I n) (I m)) --Término bloqueado
+eval1 (m,Or (I n) e2) = (fst (eval1 (m,e2)),Or (I n) (snd (eval1 (m,e2)))) --Término que será bloqueado
+eval1 (m,Or e1 e2) = (fst (eval1 (m,e1)),Or (snd (eval1 (m,e1))) e2)
+-- Gt Expr Expr
+eval1 (l,Gt (I n) (I m)) =  (l,if n - m > 0 then B True else B False)
+eval1 (m,Gt (I n) (B b)) = (m,Gt (I n) (B b)) --Término bloqueado
+eval1 (m,Gt (B b) (I n)) = (m,Gt (B b) (I n)) --Término bloqueado
+eval1 (m,Gt (B b) e2 ) = (fst (eval1 (m,e2)),Gt (B b) (snd (eval1 (m,e2)))) --Término que será bloqueado
+eval1 (m,Gt (I n) e2 ) = (fst (eval1 (m,e2)),Gt (I n) (snd (eval1 (m,e2))))
+eval1 (m,Gt e1 e2 ) = (fst (eval1 (m,e1)),Gt (snd (eval1 (m,e1))) e2)
+-- Lt Expr Expr 
+eval1 (l,Lt (I n) (I m)) =  (l,if n - m < 0 then B True else B False)
+eval1 (m,Lt (I n) (B b)) = (m,Lt (I n) (B b)) --Término bloqueado
+eval1 (m,Lt (B b) (I n)) = (m,Lt (B b) (I n)) --Término bloqueado
+eval1 (m,Lt (B b) e2) = (fst (eval1 (m,e2)),Lt (B b) (snd (eval1 (m,e2)))) --Término que será bloqueado
+eval1 (m,Lt (I n) e2) = (fst (eval1 (m,e2)),Lt (I n) (snd (eval1 (m,e2))))
+eval1 (m,Lt e1 e2) = (fst (eval1 (m,e1)),Lt (snd (eval1 (m,e1))) e2)
+-- Eq Expr Expr 
+eval1 (l,Eq (I n) (I m)) =  (l,if n - m == 0 then B True else B False)
+eval1 (m,Eq (I n) (B b)) = (m,Eq (I n) (B b)) --Término bloqueado
+eval1 (m,Eq (B b) (I n)) = (m,Eq (B b) (I n)) --Término bloqueado
+eval1 (m,Eq (B b) e2) = (fst (eval1 (m,e2)),Eq (B b) (snd (eval1 (m,e2)))) --Término que será bloqueado
+eval1 (m,Eq (I n) e2) = (fst (eval1 (m,e2)),Eq (I n) (snd (eval1 (m,e2))))
+eval1 (m,Eq e1 e2) = (fst (eval1 (m,e1)),Eq (snd (eval1 (m,e1))) e2)
+-- If Expr Expr Expr
+eval1 (m,If (B True) e1 e2) = (m,e1)
+eval1 (m,If (B False) e1 e2) = (m,e2)
+eval1 (m,If (I n) e1 e2) = (m,If (I n) e1 e2) --Término bloqueado
+eval1 (m,If e e1 e2) = (fst (eval1 (m,e)),If (snd (eval1 (m,e))) e1 e2)
+-- Let String Expr Expr
+eval1 (m,Let x (B b) e) = (m,subst e (x, B b))
+eval1 (m,Let x (I n) e) = (m,subst e (x, I n))
+eval1 (m,Let x e1  e2) = (fst (eval1 (m,e1)),Let x (snd (eval1 (m,e1))) e2)
+-- L Int
+eval1 (m, L i) = (m,L i)
+-- Alloc Expr
+-- Una expresión de la forma ref v (Alloc v) donde v es valor, devuelve como valor la dirección simbólica de la celda que alojará a v, la cual se agrega a la memoria en uso:
+eval1 (m, Alloc e) = case e of I n    -> (m ++ [(loC (newAddress m), I n)], newAddress m)
+                               B b    -> (m ++ [(loC (newAddress m), B b)], newAddress m)
+                               Fn x e -> (m ++ [(loC (newAddress m), Fn x e)], newAddress m)
+                               e      -> (fst (eval1 (m,e)), Alloc (snd (eval1 (m,e)))) --Para evaluar una expresión de la forma ref v (Alloc v) primero hay que reducir e hasta que sea un valor.
+-- Dref Expr
+-- Una recuperación ! (Dref L n) se evalua al valor almacenado en la celda con dirección de memoria "L n" el cual está dado por μ(L n).
+eval1 (m, Dref e) = case e of L n    -> (m, fromJust (access n m))
+                              I n    -> (m , I n) --Dred (!) solo se aplica a lugares de celda, por lo que Dref de un valor o es el mismo valor o es un error (por ejemplo !2 = 2 o !2 = error "el operador recuperación solo admite lugares de celda", preguntaré por telegram)
+                              B b    -> (m , B b)
+                              Fn x e -> (m , Fn x e)     
+                              e      -> (fst (eval1 (m,e)), Dref (snd (eval1 (m,e))))
+-- Assig Expr Expr
+eval1 (m, Assig (L n) e2) = case e2 of (L n)     -> error "Se le dará un lugar de memoria a un lugar de memoria, algo anda mal D:"
+                                       (I i)     -> (fromJust (update (n,I i) m),Void)   ----v----
+                                       (B True)  -> (fromJust (update (n,B True) m),Void) ---v---
+                                       (B False) -> (fromJust (update (n,B False) m),Void) --v--
+                                       (Fn x e)  -> (fromJust (update (n,Fn x e) m),Void) {-Una asignación (L n) := v (v es valor) causa un efecto en la memoria y devuelve un valor irrelevante () (Void). 
+                                                                                               El efecto consiste en eliminar el valor almacenado en la celda cuya dirección es (L n),
+                                                                                               guardando en su lugar el valor dado v.-}
+                                       e2        -> (fst (eval1 (m,e2)), Assig (L n) (snd (eval1 (m,e2)))) --Para evaluar una asignación (L n) := e2 primero es necesario reducir e2
+eval1 (m, Assig e1 e2) = (fst (eval1 (m,e1)), Assig (snd (eval1 (m,e1))) e2) --Para evaluar una asignación e1 := e2 primero es necesario reducir e1.
+-- Void
+eval1 (m,Void) = (m,Void)
+-- Seq Expr Expr
+eval1 (m,Seq Void e2) = (m, e2)
+eval1 (m,Seq e1 e2) = (fst (eval1 (m,e1)), Seq (snd (eval1 (m,e1))) e2)
+--While Expr Expr
+eval1 (m,While e1 e2) = (m,If e1 (Seq e2 (While e1 e2)) Void)
+--App Expr Expr 
+eval1 (m,App (Fn x e) valor) = case valor of I i     -> (m, subst (Fn x e) (x, I i))
+                                             B True  -> (m, subst (Fn x e) (x, B True))
+                                             B False -> (m, subst (Fn x e) (x, B False))
+                                             Fn y g  -> (m, subst (Fn x e) (x, Fn y g))
+eval1 (m,App e1 e2) = case e1 of I i     -> (fst (eval1 (m,e2)), App (I i) (snd (eval1 (m,e2))))
+                                 B True  -> (fst (eval1 (m,e2)), App (B True) (snd (eval1 (m,e2))))
+                                 B False -> (fst (eval1 (m,e2)), App (B False) (snd (eval1 (m,e2))))
+                                 Fn x e  -> (fst (eval1 (m,e2)), App (Fn x e) (snd (eval1 (m,e2))))
+                                 e1      -> (fst (eval1 (m,e1)), App (snd (eval1 (m,e1))) e2) --Las reglas para evaluar una expresión App se encuentran en las Notas de Clase 6 p.2
 
+{-Ejemplos:
 
-
-{-eval1 (m, V x) = (m, V x)
-eval1 (m, I n) = (m, I n)
-eval1 (m, B b) = (m, B b)
-eval1 (m, Fn x e) = eval1 (m, Fn x e)
-eval1 (m, Succ (Pred (I n))) = (m, I n)
-eval1 (m, Succ (I n)) = (m, I (n+1))
---eval1 (m, Succ a) = (m, Succ (eval1 (m, a)))
-
-Aqui si jalaría el Dref y esas cosas xd
-eval1 (m, Deref e) = (m, access e m)
-
+                   eval1 ([(0,B False)],(Add (I 1) (I 2))) = ([(0,B False)],I 3)
+eval1 ([(0,B False)], (Let "x" (I 1) (Add (V "x") (I 2)))) = ([(0, B False)], Add (I 1) (I 2))
+             eval1 ([(0 , B False)], Assig (L 0) (B True)) = ([(0 , B True)] , Void)
+              eval1 ([], While (B True) (Add (I 1) (I 1))) = ([], If (B True) (Seq (Add (I 1) (I 1)) (While (B True) (Add (I 1) (I 1)))) Void)
 -}
 
-----------------------------------------------------------------------------------------------------------------
-
-{-data Expr = V Identifier | I Int | B Bool
-            | Fn Identifier Expr
-            | Succ Expr | Pred Expr
-            | Add Expr Expr | Mul Expr Expr
-            | Not Expr | Iszero Expr
-            | And Expr Expr | Or Expr Expr
-            | Lt Expr Expr | Gt Expr Expr | Eq Expr Expr
-            | If Expr Expr Expr
-            | Let Identifier Expr Expr
-            | L Int
-            | Alloc Expr
-            | Dref Expr
-            | Assig Expr Expr
-            | Void
-            | Seq Expr Expr
-            | While Expr Expr
-            | App Expr Expr deriving (Eq, Show)
--}
-
-
-{--- alias para direcciones de memoria
-type Address = Int
-
---Alias para valores
-type Value = Expr
-type Cell = (Address, Value)
-type Memory = [Cell]
---[(Adre, Val), (Adre, Val), (Adre, Val),...]-}
-
-----------------------------------------------------------------------------------------------------------------
-
--- Extiende esta función para que dada una memoria y una expresión, devuelve la
+--4. evals. Extiende esta función para que dada una memoria y una expresión, devuelve la
 -- expresión hasta que la reducción quede bloqueada, es decir, evals (m, e) = (m’, e’) si y sólo si <m, e> →
 -- <m’, e’> y e’ esta bloqueado.
 evals :: (Memory, Expr) -> (Memory, Expr)
-evals = error "D:"
+-- Valores
+evals (m,valor) = case valor of V x    -> eval1 (m,V x)
+                                I n    -> eval1 (m,I n)
+                                B b    -> eval1 (m,B b)
+                                Fn x e -> evals (m,Fn x e)
+-- Operadore unarios
+evals (m,opUnario) = case opUnario of Succ e   -> eval1 (fst (evals (m,e)), Succ (snd (evals (m,e))))
+                                      Pred e   -> eval1 (fst (evals (m,e)), Pred (snd (evals (m,e))))
+                                      Not e    -> eval1 (fst (evals (m,e)), Not (snd (evals (m,e))))
+                                      Iszero e -> eval1 (fst (evals (m,e)), Iszero (snd (evals (m,e))))
+-- Operadore binarios
+evals (m,opBinario) = case opBinario of Add e1 e2 -> eval1 (fst (evals (m,e1)) ++ fst (evals (m,e2)), Add (snd (evals (m,e1))) (snd (evals (m,e2))))
+                                        Mul e1 e2 -> eval1 (fst (evals (m,e1)) ++ fst (evals (m,e2)), Mul (snd (evals (m,e1))) (snd (evals (m,e2))))
+                                        And e1 e2 -> eval1 (fst (evals (m,e1)) ++ fst (evals (m,e2)), And (snd (evals (m,e1))) (snd (evals (m,e2))))
+                                        Or e1 e2  -> eval1 (fst (evals (m,e1)) ++ fst (evals (m,e2)), Or (snd (evals (m,e1))) (snd (evals (m,e2))))
+                                        Gt e1 e2  -> eval1 (fst (evals (m,e1)) ++ fst (evals (m,e2)), Gt (snd (evals (m,e1))) (snd (evals (m,e2))))
+                                        Lt e1 e2  -> eval1 (fst (evals (m,e1)) ++ fst (evals (m,e2)), Lt (snd (evals (m,e1))) (snd (evals (m,e2))))
+                                        Eq e1 e2  -> eval1 (fst (evals (m,e1)) ++ fst (evals (m,e2)), Eq (snd (evals (m,e1))) (snd (evals (m,e2))))
+-- If Expr Expr Expr
+evals (m,If e e1 e2) = eval1 (fst (evals (m,e)) ++ fst (evals (m,e1)) ++ fst (evals (m,e2)),
+                               If (snd (evals (m,e))) (snd (evals (m,e1))) (snd (evals (m,e2))))
+-- Let String Expr Expr
+evals (m,Let x e1 e2) = eval1 (fst (evals (m,e1)) ++ fst (evals (m,e2)),
+                               Let x (snd (evals (m,e1))) (snd (evals (m,e2))))
+-- L Int
+evals (m,L i) = eval1 (m,L i)
 
+--Hasta aquí llegué gg
 
---Extiende esta función para que dada una expresión, devuelva la evaluación de un
---programa tal que evale e = e’ syss e →e’ y e’ e un valor. En caso de que e’ no sea un valor deberá mostrar
+{-
+-- Alloc Expr
+-- Una expresión de la forma ref v (Alloc v) donde v es valor, devuelve como valor la dirección simbólica de la celda que alojará a v, la cual se agrega a la memoria en uso:
+eval1 (m, Alloc e) = case e of I n    -> (m ++ [(loC (newAddress m), I n)], newAddress m)
+                               B b    -> (m ++ [(loC (newAddress m), B b)], newAddress m)
+                               Fn x e -> (m ++ [(loC (newAddress m), Fn x e)], newAddress m)
+                               e      -> (fst (eval1 (m,e)), Alloc (snd (eval1 (m,e)))) --Para evaluar una expresión de la forma ref v (Alloc v) primero hay que reducir e hasta que sea un valor.
+-- Dref Expr
+-- Una recuperación ! (Dref L n) se evalua al valor almacenado en la celda con dirección de memoria "L n" el cual está dado por μ(L n).
+eval1 (m, Dref e) = case e of L n    -> (m, fromJust (access n m))
+                              I n    -> (m , I n) --Dred (!) solo se aplica a lugares de celda, por lo que Dref de un valor o es el mismo valor o es un error (por ejemplo !2 = 2 o !2 = error "el operador recuperación solo admite lugares de celda", preguntaré por telegram)
+                              B b    -> (m , B b)
+                              Fn x e -> (m , Fn x e)     
+                              e      -> (fst (eval1 (m,e)), Dref (snd (eval1 (m,e))))
+-- Assig Expr Expr
+eval1 (m, Assig (L n) e2) = case e2 of (L n)     -> error "Se le dará un lugar de memoria a un lugar de memoria, algo anda mal D:"
+                                       (I i)     -> (fromJust (update (n,I i) m),Void)   ----v----
+                                       (B True)  -> (fromJust (update (n,B True) m),Void) ---v---
+                                       (B False) -> (fromJust (update (n,B False) m),Void) --v--
+                                       (Fn x e)  -> (fromJust (update (n,Fn x e) m),Void) {-Una asignación (L n) := v (v es valor) causa un efecto en la memoria y devuelve un valor irrelevante () (Void). 
+                                                                                               El efecto consiste en eliminar el valor almacenado en la celda cuya dirección es (L n),
+                                                                                               guardando en su lugar el valor dado v.-}
+                                       e2        -> (fst (eval1 (m,e2)), Assig (L n) (snd (eval1 (m,e2)))) --Para evaluar una asignación (L n) := e2 primero es necesario reducir e2
+eval1 (m, Assig e1 e2) = (fst (eval1 (m,e1)), Assig (snd (eval1 (m,e1))) e2) --Para evaluar una asignación e1 := e2 primero es necesario reducir e1.
+-- Void
+eval1 (m,Void) = (m,Void)
+-- Seq Expr Expr
+eval1 (m,Seq Void e2) = (m, e2)
+eval1 (m,Seq e1 e2) = (fst (eval1 (m,e1)), Seq (snd (eval1 (m,e1))) e2)
+--While Expr Expr
+eval1 (m,While e1 e2) = (m,If e1 (Seq e2 (While e1 e2)) Void)
+--App Expr Expr 
+eval1 (m,App (Fn x e) valor) = case valor of I i     -> (m, subst (Fn x e) (x, I i))
+                                             B True  -> (m, subst (Fn x e) (x, B True))
+                                             B False -> (m, subst (Fn x e) (x, B False))
+                                             Fn y g  -> (m, subst (Fn x e) (x, Fn y g))
+eval1 (m,App e1 e2) = case e1 of I i     -> (fst (eval1 (m,e2)), App (I i) (snd (eval1 (m,e2))))
+                                 B True  -> (fst (eval1 (m,e2)), App (B True) (snd (eval1 (m,e2))))
+                                 B False -> (fst (eval1 (m,e2)), App (B False) (snd (eval1 (m,e2))))
+                                 Fn x e  -> (fst (eval1 (m,e2)), App (Fn x e) (snd (eval1 (m,e2))))
+                                 e1      -> (fst (eval1 (m,e1)), App (snd (eval1 (m,e1))) e2) --Las reglas para evaluar una expresión App se encuentran en las Notas de Clase 6 p.2
+-}
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+--5. evale. Extiende esta función para que dada una expresión, devuelva la evaluación de un
+--programa tal que evale e = e’ syss e → e’ y e’ e un valor. En caso de que e’ no sea un valor deberá mostrar
 --un mensaje de error particular del operador que lo causó.
 evale :: Expr -> Expr
 evale (V x) = V x
@@ -474,6 +507,7 @@ evale (Eq _ (B b)) = error "Gt espera dos numeros"
 evale (If (I i) _ _) = error "If espera un booleano en el primer argumento"
 
 evale (App e _) = error "App espera una funcion en el primer argumento"
+
 {-data Expr = V Identifier | I Int | B Bool
             | Fn Identifier Expr
             | Succ Expr | Pred Expr
