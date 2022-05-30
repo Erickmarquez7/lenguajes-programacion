@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+-- {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Practica3.MiniC where
 import Data.List
 import Data.Maybe
@@ -478,6 +478,9 @@ evale (If (I i) _ _) = error "If espera un booleano en el primer argumento"
 
 evale (App e _) = error "App espera una funcion en el primer argumento"
 
+-- todos los demás casos los evalumos normalmente
+-- evale e = evals (eval1 (newAddress ?) e)
+
 {-data Expr = V Identifier | I Int | B Bool
             | Fn Identifier Expr
             | Succ Expr | Pred Expr
@@ -495,6 +498,11 @@ evale (App e _) = error "App espera una funcion en el primer argumento"
             | Seq Expr Expr
             | While Expr Expr
             | App Expr Expr deriving (Eq, Show)
+-}
+
+{- Ejemplos:
+                          evale (Add (Mul (I 2) (I 6)) (B True)) = Exception: Add espera dos numeros 
+       evale (Or (Eq (Add (I 0) (I 0)) (I 0)) (Eq (I 1) (I 10))) = 
 -}
 
 
