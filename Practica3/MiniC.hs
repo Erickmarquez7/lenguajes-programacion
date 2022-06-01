@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Practica3.MiniC where
 import Data.List
 import Data.Maybe
@@ -84,9 +83,9 @@ newAddress m = L (minFree (map fst (revMemo m)))
 
 {-Ejemplos:
 
-                                     newAddress [] = L0
-                  newAddress [(0,B False),(2,I 9)] = L1
-           newAddress [(0,I 21),(1,Void),(2,I 12)] = L3
+                                     newAddress [] = L 0
+                  newAddress [(0,B False),(2,I 9)] = L 1
+           newAddress [(0,I 21),(1,Void),(2,I 12)] = L 3
 newAddress [(0,I 21),(1,Void),(2,I 12),(1,B True)] = Exception: Corrupted Memory
 -}
 
@@ -121,7 +120,7 @@ update (i,e) m = error "Memory can only store values"
 {-Ejemplos:
                                   update (3,B True) [] = Nothing
         update (0,Succ (V "x")) [(0,B False),(2, I 9)] = Exception: Memory can only store values
-update (0,Fn "x" (V "x")) [(0,I 21),(1,Void),(2,I 12)] = [(0,Fn "x" (V "x")),(1,Void),(2,I 12)]
+update (0,Fn "x" (V "x")) [(0,I 21),(1,Void),(2,I 12)] = Just [(0,Fn "x" (V "x")),(1,Void),(2,I 12)]
        update (2, I 14) [(0,I 21),(2, Void),(2, I 12)] = Exception: Corrupted memory
        update (2, I 14) [(0,I 13),(1,B True),(2,I 25)] = Just [(0,I 13),(1,B True),(2,I 14)]
 -}
@@ -216,7 +215,7 @@ subst (App a b) s = App (subst a s) (subst b s)
 
 {-Ejemplos:
                    subst (Add (V "x") (I 5)) ("x",I 10) = Add (I 10) (I 5)
-  subst (Let "x" (I 1) (V "x")) ("y",Add (V "x") (I 5)) = Let "x1" (I 1) (V "x1") -- se busca alfa equivalencias
+  subst (Let "x" (I 1) (V "x")) ("y",Add (V "z") (I 5)) = Let "x" (I 1) (V "x") -- se busca alfa equivalencias
   subst (Assig (L 2) (Add (I 0) (V "z"))) ("z",B False) = (Assig (L 2) (Add (I 0) (B False)))
 -}
 
@@ -521,6 +520,6 @@ evale (App e1 e2) = evale (snd (evals ([], App e1 e2)))
 evale (Or (Eq (Add (I 0) (I 0)) (I 0)) (Eq (I 1) (I 10))) = B True
 -}
 
------------------------------------
---stack ghci src/Practica3.MiniC.hs
------------------------------------
+
+--FIN
+
