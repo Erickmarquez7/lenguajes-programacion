@@ -1,8 +1,6 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-
 module Practica4.MaquinaK where
 import Data.List
-import Data.Maybe
+
 -----------------------------------------------------------
 --      Lenguajes de Programación y sus Paradigmas       --
 -----------------------------------------------------------
@@ -27,13 +25,6 @@ data Expr = V Identifier | I Int | B Bool
             | Lt Expr Expr | Gt Expr Expr | Eq Expr Expr
             | If Expr Expr Expr
             | Let Identifier Expr Expr
-            | L Int
-            | Alloc Expr
-            | Dref Expr
-            | Assig Expr Expr
-            | Void
-            | Seq Expr Expr
-            | While Expr Expr
             | App Expr Expr
             | Raise Expr
             | Handle Expr Identifier Expr deriving(Eq)
@@ -75,13 +66,6 @@ instance Show Expr where
       Eq ex ex' -> "Eq("++ show ex ++", "++ show ex'++")"
       If ex ex' ex2 -> "If("++ show ex ++", "++ show ex'++", "++ show ex2++")"
       Let i ex ex' -> "Let("++ show ex ++", "++ i++"."++ show ex'++")"
-      L n -> "L(" ++ show n ++ ")"
-      Alloc ex -> "Alloc("++ show ex ++")"
-      Dref ex -> "Dref("++ show ex ++")"
-      Assig ex ex' -> "Assig("++ show ex ++", "++ show ex'++")"
-      Void -> "Void()"
-      Seq ex ex' -> "Seq("++ show ex ++", "++ show ex'++")"
-      While ex ex' -> "While("++ show ex ++", "++ show ex'++")"
       App ex ex' -> "App("++ show ex ++", "++ show ex'++")"
       Raise ex -> "Raise("++ show ex ++")"
       Handle ex s ex' -> "Handle("++show ex++", "++s++", "++show ex'++")"
@@ -134,13 +118,6 @@ frVars (Gt p q) = frVars p `union` frVars q
 frVars (Eq p q) = frVars p `union` frVars q
 frVars (If a b c) = frVars a `union` frVars b `union` frVars c
 frVars (Let x a b) = frVars a `union` filter (/=x) (frVars b)
-frVars (L i) = []
-frVars (Alloc e) = frVars e
-frVars (Dref e) = frVars e
-frVars (Assig a b) = frVars a `union` frVars b
-frVars Void = []
-frVars (Seq a b) = frVars a `union` frVars b
-frVars (While a b) = frVars a `union` frVars b
 frVars (App a b) = frVars a `union` frVars b
 frVars (Raise a) = frVars a
 frVars (Handle a x c) = frVars a `union` filter (/=x) (frVars c)
@@ -171,13 +148,6 @@ subst (If c a b) s = If (subst c s) (subst a s) (subst b s)
 subst (Let x e1 e2) (y,e) |            x == y = error "Se hará una sustitución en una variable ligada, busca una alfa equivalencia de una expresión Let"
                           | x `elem` frVars e = error "La expresion a sustituir tiene una variable con el mismo nombre que una ligada a una expresión Let, busca una alfa equivalencia"
                           |         otherwise = Let x (subst e1 (y,e)) (subst e2 (y,e))
-subst (L i) s = L i
-subst (Alloc a) s = Alloc (subst a s)
-subst (Dref a) s = Dref (subst a s)
-subst Void s = error "No se puede sustituir algo vacio"
-subst (Assig a b) s = Assig (subst a s) (subst b s)
-subst (Seq a b) s = Seq (subst a s) (subst b s)
-subst (While a b) s = While (subst a s) (subst b s)
 subst (App a b) s = App (subst a s) (subst b s)
 subst (Raise a) s = Raise (subst a s)
 subst (Handle e1 x e2) (i,e)
@@ -187,57 +157,201 @@ subst (Handle e1 x e2) (i,e)
 
 
 -- Defincion de pila de marcos
-data Stack = Empty | S Frame Stack
+data Stack = Empty | S Frame Stack deriving (Show, Eq)
 
 
 --Definicion de los estados
-data State = E Stack Expr
-            | R Stack Expr
-            | P Stack Expr
+data State =  E Stack Expr -- P;⬚ > e
+            | R Stack Expr -- P;⬚ < e
+            | P Stack Expr deriving (Show, Eq)-- P;⬚ << e 
 
+--La siguiente función auxiliar servirá para definir las interacciones rise <-> handle:
+isHandleF :: Frame -> Bool
+isHandleF (HandleF x e) = True 
+isHandleF _             = False
 
 -- Re implementa esta función para que dado un estado, devuelva un paso de transicion,
 -- es decir, eval1 s = s’ si y sólo si s →_k s’
 eval1 :: State -> State
-eval1 (E s (I n)) = R s (I n) -- C quedan igual
-eval1 (E s (B b)) = R s (B b) -- s para seguir manteniendo el estado de la pila
-eval1 (E s (V v)) = R s (V v)
--------- Creo que sería mejor si primero hacemos las E's
---eval1 (E s (Fn i e)) = E (S Fn) ?? a chinga, no falta un marco para fn?
-eval1 (E s (Succ e)) = E (S (SuccF ) s) e -- NO recibe argumento
-eval1 (E s (Pred e)) = E (S (PredF ) s) e
-eval1 (E s (Add e1 e2)) = E (S (AddFL e2) s) e1 --Ponemos la expr de la izq en la pila
-eval1 (E s (Mul e1 e2)) = E (S (MulFL e2) s) e1
-eval1 (E s (Not e)) = E (S (NotF ) s) e
-eval1 (E s (Iszero e)) = E (S (IsZeroF ) s) e
-eval1 (E s (And e1 e2)) = E (S (AndFL e2) s) e1
-eval1 (E s (Or e1 e2)) = E (S (OrFL e2) s) e1
-eval1 (E s (Lt e1 e2)) = E (S (LtFL e2) s) e1
-eval1 (E s (Gt e1 e2)) = E (S (GtFL e2) s) e1
-eval1 (E s (Eq e1 e2)) = E (S (EqFL e2) s) e1
-eval1 (E s (If b e2 e3)) = E (S (IfF e2 e3) s) b
-eval1 (E s (Let i e1 e2)) = E (S (LetM i e2) s) e1
-eval1 (E s (App e1 e2)) = E (S (AppFL e2) s) e1
+----------------------Valores--------------------------
+eval1 (E Empty (I n))    = R Empty (I n) --Estado final
+eval1 (E Empty (B b))    = R Empty (B b) --Estado final
+eval1 (E Empty (V v))    = R Empty (V v) --Estado final
+eval1 (E Empty (Fn x e)) = R Empty (Fn x e) --Estado final
+eval1 (E s (I n))        = R s (I n)
+eval1 (E s (B b))        = R s (B b) 
+eval1 (E s (V v))        = R s (V v)
+eval1 (E s (Fn x e))     = R s (Fn x e)
+------------------------------Sucesor--------------------------------------
+eval1 (R (S SuccF s) (B b))    = R (S SuccF s) (B b)------Término bloqueado
+eval1 (R (S SuccF s) (V v))    = R (S SuccF s) (V v)------Término bloqueado
+eval1 (R (S SuccF s) (Fn x e)) = R (S SuccF s) (Fn x e) --Término bloqueado
+eval1 (R (S SuccF s) (I n))    = E s (I (n+1))------------Caso significativo
+eval1 (E s (Succ e))           = E (S SuccF s) e ---------Caso significativo
+-----------------------------Predecesor -----------------------------------
+eval1 (R (S PredF s) (B b))    = R (S PredF s) (B b)------Término bloqueado
+eval1 (R (S PredF s) (V v))    = R (S PredF s) (V v)------Término bloqueado
+eval1 (R (S PredF s) (Fn x e)) = R (S PredF s) (Fn x e) --Término bloqueado
+eval1 (R (S PredF s) (I n))    = E s (I (n-1))------------Caso significativo
+eval1 (E s (Pred e))           = E (S PredF s) e----------Caso significativo
+------------------------------------Suma--------------------------------------------------
+eval1 (R (S (AddFL e2) s) (B b))       = E (S (AddFR (B b)) s) e2--------Término bloqueado 
+eval1 (R (S (AddFL e2) s) (V v))       = E (S (AddFR (V v)) s) e2--------Término bloqueado
+eval1 (R (S (AddFL e2) s) (Fn x e))    = E (S (AddFR (Fn x e)) s) e2-----Término bloqueado 
+eval1 (R (S (AddFR (I n)) s) (B b))    = R (S (AddFR (I n)) s) (B b)-----Término bloqueado
+eval1 (R (S (AddFR (I n)) s) (V v))    = R (S (AddFR (I n)) s) (V v)-----Término bloqueado
+eval1 (R (S (AddFR (I n)) s) (Fn x e)) = R (S (AddFR (I n)) s) (Fn x e)--Término bloqueado
+eval1 (R (S (AddFL e2) s) (I n))       = E (S (AddFR (I n)) s) e2--------Caso significativo
+eval1 (R (S (AddFR (I n)) s) (I m))    = R s (I (n + m))-----------------Caso significativo
+eval1 (E s (Add e1 e2))                = E (S (AddFL e2) s) e1-----------Caso significativo
+----------------------------------Producto------------------------------------------------
+eval1 (R (S (MulFL e2) s) (B b))       = E (S (MulFR (B b)) s) e2--------Término bloqueado 
+eval1 (R (S (MulFL e2) s) (V v))       = E (S (MulFR (V v)) s) e2--------Término bloqueado
+eval1 (R (S (MulFL e2) s) (Fn x e))    = E (S (MulFR (Fn x e)) s) e2-----Término bloqueado 
+eval1 (R (S (MulFR (I n)) s) (B b))    = R (S (MulFR (I n)) s) (B b)-----Término bloqueado
+eval1 (R (S (MulFR (I n)) s) (V v))    = R (S (MulFR (I n)) s) (V v)-----Término bloqueado
+eval1 (R (S (MulFR (I n)) s) (Fn x e)) = R (S (MulFR (I n)) s) (Fn x e)--Término bloqueado
+eval1 (R (S (MulFL e2) s) (I n))       = E (S (MulFR (I n)) s) e2--------Caso significativo
+eval1 (R (S (MulFR (I n)) s) (I m))    = R s (I (n * m))-----------------Caso significativo
+eval1 (E s (Mul e1 e2))                = E (S (MulFL e2) s) e1-----------Caso significativo
+---------------------------------Conjuntción----------------------------------------------
+eval1 (R (S (AndFL e2) s) (I n))       = E (S (AndFR (I n)) s) e2--------Término bloqueado 
+eval1 (R (S (AndFL e2) s) (V v))       = E (S (AndFR (V v)) s) e2--------Término bloqueado
+eval1 (R (S (AndFL e2) s) (Fn x e))    = E (S (AndFR (Fn x e)) s) e2-----Término bloqueado 
+eval1 (R (S (AndFR (B b)) s) (I n))    = R (S (AndFR (B b)) s) (I n)-----Término bloqueado
+eval1 (R (S (AndFR (B b)) s) (V v))    = R (S (AndFR (B b)) s) (V v)-----Término bloqueado
+eval1 (R (S (AndFR (B b)) s) (Fn x e)) = R (S (AndFR (B b)) s) (Fn x e)--Término bloqueado
+eval1 (R (S (AndFL e2) s) (B b))       = E (S (AndFR (B b)) s) e2--------Caso significativo
+eval1 (R (S (AndFR (B b)) s) (B d))    = R s (B (b && d))----------------Caso significativo
+eval1 (E s (And e1 e2))                = E (S (AndFL e2) s) e1-----------Caso significativo
+---------------------------------Disyunción---------------------------------------------
+eval1 (R (S (OrFL e2) s) (I n))       = E (S (OrFR (I n)) s) e2--------Término bloqueado 
+eval1 (R (S (OrFL e2) s) (V v))       = E (S (OrFR (V v)) s) e2--------Término bloqueado
+eval1 (R (S (OrFL e2) s) (Fn x e))    = E (S (OrFR (Fn x e)) s) e2-----Término bloqueado 
+eval1 (R (S (OrFR (B b)) s) (I n))    = R (S (OrFR (B b)) s) (I n)-----Término bloqueado
+eval1 (R (S (OrFR (B b)) s) (V v))    = R (S (OrFR (B b)) s) (V v)-----Término bloqueado
+eval1 (R (S (OrFR (B b)) s) (Fn x e)) = R (S (OrFR (B b)) s) (Fn x e)--Término bloqueado
+eval1 (R (S (OrFL e2) s) (B b))       = E (S (OrFR (B b)) s) e2--------Caso significativo
+eval1 (R (S (OrFR (B b)) s) (B d))    = R s (B (b || d))---------------Caso significativo
+eval1 (E s (Or e1 e2))                = E (S (OrFL e2) s) e1-----------Caso significativo
+----------------------------Negación------------------------------------
+eval1 (R (S NotF s) (I n))    = E (S NotF s) (I n)-----Término bloqueado
+eval1 (R (S NotF s) (V v))    = E (S NotF s) (V v)-----Término bloqueado
+eval1 (R (S NotF s) (Fn x e)) = E (S NotF s) (Fn x e)--Término bloqueado
+eval1 (R (S NotF s) (B b))    = R s (B (not b))--------Caso significativo
+eval1 (E s (Not e))           = E (S NotF s) e---------Caso significativo
+--------------------------Test iszero-----------------------------------------
+eval1 (R (S IsZeroF s) (B b))    = E (S IsZeroF s) (B b)-----Término bloqueado
+eval1 (R (S IsZeroF s) (V v))    = E (S IsZeroF s) (V v)-----Término bloqueado
+eval1 (R (S IsZeroF s) (Fn x e)) = E (S IsZeroF s) (Fn x e)--Término bloqueado
+eval1 (R (S IsZeroF s) (I i))    = if i == 0          
+                                    then R s (B True) 
+                                    else R s (B False)-------Caso significativo
+eval1 (E s (Iszero e))           = E (S IsZeroF s) e---------Caso significativo
+-----------------------------Test menor que---------------------------------------------
+eval1 (R (S (LtFL e2) s) (B b))       = E (S (LtFR (B b)) s) e2--------Término bloqueado 
+eval1 (R (S (LtFL e2) s) (V v))       = E (S (LtFR (V v)) s) e2--------Término bloqueado
+eval1 (R (S (LtFL e2) s) (Fn x e))    = E (S (LtFR (Fn x e)) s) e2-----Término bloqueado 
+eval1 (R (S (LtFR (I n)) s) (B b))    = R (S (LtFR (I n)) s) (B b)-----Término bloqueado
+eval1 (R (S (LtFR (I n)) s) (V v))    = R (S (LtFR (I n)) s) (V v)-----Término bloqueado
+eval1 (R (S (LtFR (I n)) s) (Fn x e)) = R (S (LtFR (I n)) s) (Fn x e)--Término bloqueado
+eval1 (R (S (LtFL e2) s) (I n))       = E (S (LtFR (I n)) s) e2--------Caso significativo
+eval1 (R (S (LtFR (I n)) s) (I m))    = if n-m < 0          
+                                          then R s (B True) 
+                                          else R s (B False)-----------Caso significativo
+eval1 (E s (Lt e1 e2))                = E (S (LtFL e2) s) e1-----------Caso significativo
+------------------------------Test mayor que--------------------------------------------
+eval1 (R (S (GtFL e2) s) (B b))       = E (S (GtFR (B b)) s) e2--------Término bloqueado 
+eval1 (R (S (GtFL e2) s) (V v))       = E (S (GtFR (V v)) s) e2--------Término bloqueado
+eval1 (R (S (GtFL e2) s) (Fn x e))    = E (S (GtFR (Fn x e)) s) e2-----Término bloqueado 
+eval1 (R (S (GtFR (I n)) s) (B b))    = R (S (GtFR (I n)) s) (B b)-----Término bloqueado
+eval1 (R (S (GtFR (I n)) s) (V v))    = R (S (GtFR (I n)) s) (V v)-----Término bloqueado
+eval1 (R (S (GtFR (I n)) s) (Fn x e)) = R (S (GtFR (I n)) s) (Fn x e)--Término bloqueado
+eval1 (R (S (GtFL e2) s) (I n))       = E (S (GtFR (I n)) s) e2--------Caso significativo
+eval1 (R (S (GtFR (I n)) s) (I m))    = if m-n < 0          
+                                          then R s (B True) 
+                                          else R s (B False)-----------Caso significativo
+eval1 (E s (Gt e1 e2))                = E (S (GtFL e2) s) e1-----------Caso significativo
+-----------------------------Test igualdad----------------------------------------------
+eval1 (R (S (EqFL e2) s) (B b))       = E (S (EqFR (B b)) s) e2--------Término bloqueado 
+eval1 (R (S (EqFL e2) s) (V v))       = E (S (EqFR (V v)) s) e2--------Término bloqueado
+eval1 (R (S (EqFL e2) s) (Fn x e))    = E (S (EqFR (Fn x e)) s) e2-----Término bloqueado 
+eval1 (R (S (EqFR (I n)) s) (B b))    = R (S (EqFR (I n)) s) (B b)-----Término bloqueado
+eval1 (R (S (EqFR (I n)) s) (V v))    = R (S (EqFR (I n)) s) (V v)-----Término bloqueado
+eval1 (R (S (EqFR (I n)) s) (Fn x e)) = R (S (EqFR (I n)) s) (Fn x e)--Término bloqueado
+eval1 (R (S (EqFL e2) s) (I n))       = E (S (EqFR (I n)) s) e2--------Caso significativo
+eval1 (R (S (EqFR (I n)) s) (I m))    = if n == m 
+                                          then R s (B True) 
+                                          else R s (B False)-----------Caso significativo
+eval1 (E s (Eq e1 e2))                = E (S (EqFL e2) s) e1-----------Caso significativo
+---------------------------Condicional if then else-----------------------------------
+eval1 (R (S (IfF e1 e2) s) (I n))    = E (S (IfF e1 e2) s) (I n)-----Término bloqueado
+eval1 (R (S (IfF e1 e2) s) (V v))    = E (S (IfF e1 e2) s) (V v)-----Término bloqueado
+eval1 (R (S (IfF e1 e2) s) (Fn x e)) = E (S (IfF e1 e2) s) (Fn x e)--Término bloqueado
+eval1 (R (S (IfF e1 e2) s) (B b))    = if b then E s e1 else E s e2--Caso significativo
+eval1 (E s (If e e1 e2))             = E (S (IfF e1 e2) s) e --------Caso significativo
+------------------------------Abstracción let------------------------------------------
+eval1 (R (S (LetM x e2) s) (V v))     = E s (subst e2 (x, V v))------Caso significativo
+eval1 (R (S (LetM x e2) s) (I n))     = E s (subst e2 (x, I n))------Caso significativo
+eval1 (R (S (LetM x e2) s) (B b))     = E s (subst e2 (x, B b))------Caso significativo
+eval1 (R (S (LetM x e2) s) (Fn y e3)) = E s (subst e2 (x, Fn y e3))--Caso significativo
+eval1 (E s (Let x e1 e2))             = E (S (LetM x e2) s) e1-------Caso significativo
+----------------------------Aplicación de función--------------------------------------------
+eval1 (R (S (AppFL e2) s) (I i))            = E (S (AppFL e2) s) (I i)------Término bloqueado
+eval1 (R (S (AppFL e2) s) (B b))            = E (S (AppFL e2) s) (B b)------Término bloqueado
+eval1 (R (S (AppFL e2) s) (V v))            = E (S (AppFL e2) s) (V v)------Término bloqueado
+eval1 (R (S (AppFL e2) s) (Fn x e3))        = E (S (AppFR (Fn x e3)) s) e2--Caso significativo
+eval1 (R (S (AppFR (Fn x e3)) s) (I i))     = E s (subst e3 (x,I i))--------Caso significativo
+eval1 (R (S (AppFR (Fn x e3)) s) (B b))     = E s (subst e3 (x,B b))--------Caso significativo
+eval1 (R (S (AppFR (Fn x e3)) s) (V v))     = E s (subst e3 (x,V v))--------Caso significativo
+eval1 (R (S (AppFR (Fn x e3)) s) (Fn y e4)) = E s (subst e3 (x,Fn y e4))----Caso significativo
+eval1 (E s (App e1 e2))                     = E (S (AppFL e2) s) e1---------Caso significativo
+--------------------------Manejo de error raise------------------------------
+eval1 (R (S RaiseF s) (I n))    = P s (Raise (I n))---------Caso significativo
+eval1 (R (S RaiseF s) (B b))    = P s (Raise (B b))---------Caso significativo
+eval1 (R (S RaiseF s) (V v))    = P s (Raise (V v))---------Caso significativo
+eval1 (R (S RaiseF s) (Fn x e)) = P s (Raise (Fn x e))------Caso significativo
+eval1 (R s (Raise e))           = R (S RaiseF s) e----------Caso significativo
+--------------------------Manejo de error handle------------------------------
+eval1 (R (S (HandleF x e2) s) (I n))    = R s (I n)---------Caso significativo
+eval1 (R (S (HandleF x e2) s) (B b))    = R s (B b)---------Caso significativo
+eval1 (R (S (HandleF x e2) s) (V v))    = R s (V v)---------Caso significativo
+eval1 (R (S (HandleF x e2) s) (Fn y e)) = R s (Fn y e)------Caso significativo
+------------------------Interacción rise <-> handle----------------------------------------------------
+eval1 (P (S m p) (Raise (I n)))    = if isHandleF m then P p (Raise (I n)) else P (S m p) (Raise (I n))       -- Caso significativo o término bloqueado
+eval1 (P (S m p) (Raise (B b)))    = if isHandleF m then P p (Raise (B b)) else P (S m p) (Raise (B b))       -- Caso significativo o término bloqueado
+eval1 (P (S m p) (Raise (V v)))    = if isHandleF m then P p (Raise (V v)) else P (S m p) (Raise (V v))       -- Caso significativo o término bloqueado
+eval1 (P (S m p) (Raise (Fn x e))) = if isHandleF m then P p (Raise (Fn x e)) else P (S m p) (Raise (Fn x e)) -- Caso significativo o término bloqueado
+eval1 (P (S (HandleF x e) p) (Raise (I n)))      = E p (subst e (x, I n))
+eval1 (P (S (HandleF x e) p) (Raise (B b)))      = E p (subst e (x, B b))
+eval1 (P (S (HandleF x e) p) (Raise (V v)))      = E p (subst e (x, V v))
+eval1 (P (S (HandleF x e1) p) (Raise (Fn y e2))) = E p (subst e1 (x, Fn y e2))
+eval1 state = state -- <-- Finalmente se define que cuando se llegue a un estado final o un estado bloquead simplemente
+                         --eval1 se comporta como la identidad, ¡esto será crucial para la definición de evals!
 
---Ahora las R con su respectiva variable xd
+--Ejemplos:
 
+--      eval1 (E Empty (Add (I 2) (I 3))) = E (S (AddFL (I 3)) Empty) (I 2) = E (S Add(-, I(3)) Empty) I(2)
+--eval1 (E (S (AddFL (I 3)) Empty) (I 2)) = R (S (AddFL (I 3)) Empty) (I 2) = R (S Add(-, I(3)) Empty) I(2)
 
+--Función que auxiliar que ayuda a probar la forma de cada iteración de la función eval1:
 
-
-
---Idea
---eval1 (E s (Add e1 e2)) = E (S (AddFL e2) s) e1 --Ponemos la expr de la izq en la pila
---eval1 (R (S (AddFL e) s) (I n)) = E (S (AddFR (I n)) s) e --Metemos el otro lado
---eval1 (R (S (AddFR (I n)) s) (I m)) = R s (I (n+m)) -- finalmente evaluamos
-
-
+{-evaln :: Int -> State -> State
+evaln n me = if n == 0
+           then me
+           else evaln (n-1) (eval1 me)-}
 
 -- Extiende esta función para que dado un estado, aplica la funcion de transicion
 -- hasta llegar a un estado bloqueado, es decir, evals s = s’ si y sólo si s →∗_k s’ 
 -- y s’ esta bloqueado o la pila esta vacia.
-evals :: State -> State
-evals = error "D:"
 
+evals :: State -> State
+evals e = if e == eval1 e then e else evals (eval1 e)
+
+--Ejemplos :
+
+--evals (E Empty (Let "x" (I 2) (Mul (Add (I 1) (V "x")) (V "x")))) = R Empty (I 6)
+--evals (E Empty (Let "x" (B True) (If (V "x") (V "x") (B False)))) = R Empty (B True)
 
 -- Extiende esta función para que dada una expresión, devuelva la evaluación de un programa 
 --tal que evale e = e’ syss e→∗_k e’, e’ es un valor devuelto a una pila vacia. En caso de que e’
@@ -245,7 +359,20 @@ evals = error "D:"
 --mostrar un mensaje de error particular del operador que lo causó. 
 {- NOTA: aunque en esta funcion no es visible la evaluacion
 debe hacerse utilizando la maquina K. Hint: utiliza la funcion evals.-}
+
+--Primero definimos la siguiente función auxiliar que extrae una expresión de un constructor State:
+
+auxevale :: State -> Expr
+auxevale (E s e) = e
+auxevale (R s e) = e
+auxevale (P s e) = e
+
+
+--Así definimos la función evale como:
+
 evale :: Expr -> Expr
-evale = error "D:"
-
-
+evale e = auxevale (evals (E Empty e)) -- <--- ando en esta
+ 
+--------------------------------------
+--stack ghci src/Practica4.MaquinaK.hs 
+--------------------------------------
