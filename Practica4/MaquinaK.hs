@@ -70,6 +70,9 @@ instance Show Expr where
       Raise ex        -> "Raise("++ show ex ++")"
       Handle ex s ex' -> "Handle("++show ex++", "++s++", "++show ex'++")"
 
+
+--1. (1 punto) Crea una instancia de la clase Show para los marcos de acuerdo a la sintaxis descrita en las notas del curso.
+
 {-- Show para los Frame -}
 instance Show Frame where
     show e = case e of
@@ -98,7 +101,7 @@ instance Show Frame where
         RaiseF        -> "Raise(-)"
         (HandleF a b) -> "HandleF(-, "++a++"."++show b++")"
 
-
+        
 -- 5. Extender la funcion frVars 
 frVars :: Expr -> [Identifier]
 frVars (V i)          = [i]
@@ -170,7 +173,7 @@ isHandleF :: Frame -> Bool
 isHandleF (HandleF x e) = True 
 isHandleF _             = False
 
--- Re implementa esta función para que dado un estado, devuelva un paso de transicion,
+-- 2. (5 puntos) eval1. Re implementa esta función para que dado un estado, devuelva un paso de transicion,
 -- es decir, eval1 s = s’ si y sólo si s →_k s’
 eval1 :: State -> State
 ----------------------Valores----------------------------------
@@ -318,14 +321,14 @@ eval1 (R (S (HandleF x e2) s) (B b))    = R s (B b)---------Caso significativo
 eval1 (R (S (HandleF x e2) s) (V v))    = R s (V v)---------Caso significativo
 eval1 (R (S (HandleF x e2) s) (Fn y e)) = R s (Fn y e)------Caso significativo
 ------------------------Interacción rise <-> handle----------------------------------------------------
-eval1 (P (S m p) (Raise (I n)))    = if isHandleF m then P p (Raise (I n)) else P (S m p) (Raise (I n))       -- Caso significativo
-eval1 (P (S m p) (Raise (B b)))    = if isHandleF m then P p (Raise (B b)) else P (S m p) (Raise (B b))       -- Caso significativo
-eval1 (P (S m p) (Raise (V v)))    = if isHandleF m then P p (Raise (V v)) else P (S m p) (Raise (V v))       -- Caso significativo
-eval1 (P (S m p) (Raise (Fn x e))) = if isHandleF m then P p (Raise (Fn x e)) else P (S m p) (Raise (Fn x e)) -- Caso significativo
 eval1 (P (S (HandleF x e) p) (Raise (I n)))      = E p (subst e (x, I n))
 eval1 (P (S (HandleF x e) p) (Raise (B b)))      = E p (subst e (x, B b))
 eval1 (P (S (HandleF x e) p) (Raise (V v)))      = E p (subst e (x, V v))
 eval1 (P (S (HandleF x e1) p) (Raise (Fn y e2))) = E p (subst e1 (x, Fn y e2))
+eval1 (P (S m p) (Raise (I n)))    = if isHandleF m then P p (Raise (I n)) else P (S m p) (Raise (I n))       -- Caso significativo
+eval1 (P (S m p) (Raise (B b)))    = if isHandleF m then P p (Raise (B b)) else P (S m p) (Raise (B b))       -- Caso significativo
+eval1 (P (S m p) (Raise (V v)))    = if isHandleF m then P p (Raise (V v)) else P (S m p) (Raise (V v))       -- Caso significativo
+eval1 (P (S m p) (Raise (Fn x e))) = if isHandleF m then P p (Raise (Fn x e)) else P (S m p) (Raise (Fn x e)) -- Caso significativo
 eval1 state = state -- <-- Finalmente se define que cuando se llegue a un estado final o un estado bloqueado simplemente
                          --eval1 se comporta como la identidad, ¡esto será crucial para la definición de evals!
 
@@ -341,7 +344,7 @@ evaln n me = if n == 0
            then me
            else evaln (n-1) (eval1 me)-}
 
--- Extiende esta función para que dado un estado, aplica la funcion de transicion
+--3. (1.5 puntos) evals. Extiende esta función para que dado un estado, aplica la funcion de transicion
 -- hasta llegar a un estado bloqueado, es decir, evals s = s’ si y sólo si s →∗_k s’ 
 -- y s’ esta bloqueado o la pila esta vacia.
 
@@ -353,7 +356,7 @@ evals e = if e == eval1 e then e else evals (eval1 e)
 --evals (E Empty (Let "x" (I 2) (Mul (Add (I 1) (V "x")) (V "x")))) = R Empty (I 6)
 --evals (E Empty (Let "x" (B True) (If (V "x") (V "x") (B False)))) = R Empty (B True)
 
--- Extiende esta función para que dada una expresión, devuelva la evaluación de un programa 
+--4. (1.5 puntos) evale. Extiende esta función para que dada una expresión, devuelva la evaluación de un programa 
 --tal que evale e = e’ syss e→∗_k e’, e’ es un valor devuelto a una pila vacia. En caso de que e’
 --no sea un valor cuando la pila quede vacia o se llegue a un estado bloqueado deberá 
 --mostrar un mensaje de error particular del operador que lo causó. 
@@ -466,18 +469,23 @@ evale e = auxevale (verif (evals (E Empty e)))
 --Manejo de excepciones -- <-- Solo falta esto
 
 
---5. (1 punto) Extiende las funciones frVars y subst para los nuevos constructores agregados.
+--5. (1 punto) Extiende las funciones frVars y subst para los nuevos constructores agregados. 
+
+-- ✔
 
 
 --6. (2 puntos) Extiende las funciones de eval1, evals y evale para incluir el manejo de excepciones con valor usando las expresiones que agregamos a la sintaxis.
 
+-- ✔
 
 --Ejemplo:
---Main> eval1 P (S (HandleF "x" (V "x")) Empty) (Raise (B False))
---E Empty (B False)
+
+s :: State
+s =  P (S (HandleF "x" (V "x")) Empty) (Raise (B False))
+
+-- eval1 s = E Empty (B False)
 
 
-
---------------------------------------
---stack ghci src/Practica4.MaquinaK.hs 
---------------------------------------
+---------
+-- FIN --
+---------
