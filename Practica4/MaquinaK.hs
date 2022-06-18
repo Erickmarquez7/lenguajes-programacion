@@ -471,12 +471,11 @@ evale e = auxevale (verif (evals (E Empty e)))
 
 --5. (1 punto) Extiende las funciones frVars y subst para los nuevos constructores agregados. 
 
--- ✔
-
+-- Listo ✔
 
 --6. (2 puntos) Extiende las funciones de eval1, evals y evale para incluir el manejo de excepciones con valor usando las expresiones que agregamos a la sintaxis.
 
--- ✔
+-- Listo ✔
 
 --Ejemplo:
 
@@ -485,7 +484,6 @@ s =  P (S (HandleF "x" (V "x")) Empty) (Raise (B False))
 
 -- eval1 s = E Empty (B False)
 
-
----------
--- FIN --
----------
+--------------------------------------
+--stack ghci src/Practica4.MaquinaK.hs 
+--------------------------------------
