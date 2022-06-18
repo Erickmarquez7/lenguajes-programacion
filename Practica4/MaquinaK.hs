@@ -46,30 +46,29 @@ data Frame = AddFL Expr | AddFR Expr
             | HandleF Identifier Expr deriving (Eq)
 
 
-{-- Show para las Expr -}
+{- Show para las Expr en sintaxis concreta (Ejercicio extra E1)-}
 instance Show Expr where
     show e = case e of
-      V s             -> "V("++ s ++")"
-      I n             -> "I("++ show n ++")"
-      B b             -> "B("++ show b ++")"
-      Fn i e          -> "Fn("++i++"."++show e++")"
-      Succ ex         -> "Succ("++ show ex ++")"
-      Pred ex         -> "Pred("++ show ex ++")"
-      Add ex ex'      -> "Add("++ show ex ++", "++ show ex'++")"
-      Mul ex ex'      -> "Mul("++ show ex ++", "++ show ex'++")"
-      Not ex          -> "Not("++ show ex ++")"
-      Iszero ex       -> "IsZero("++ show ex ++")"
-      And ex ex'      -> "And("++ show ex ++", "++ show ex'++")"
-      Or ex ex'       -> "Or("++ show ex ++", "++ show ex'++")"
-      Lt ex ex'       -> "Lt("++ show ex ++", "++ show ex'++")"
-      Gt ex ex'       -> "GT("++ show ex ++", "++ show ex'++")"
-      Eq ex ex'       -> "Eq("++ show ex ++", "++ show ex'++")"
-      If ex ex' ex2   -> "If("++ show ex ++", "++ show ex'++", "++ show ex2++")"
-      Let i ex  ex'   -> "Let("++ show ex ++", "++ i++"."++ show ex'++")"
-      App ex ex'      -> "App("++ show ex ++", "++ show ex'++")"
-      Raise ex        -> "Raise("++ show ex ++")"
-      Handle ex s ex' -> "Handle("++show ex++", "++s++", "++show ex'++")"
-
+      V s             -> show s
+      I n             -> show n
+      B b             -> show b
+      Fn i e          -> "(λ"++i++"."++show e++")"
+      Succ ex         -> "succ ("++ show ex ++")"
+      Pred ex         -> "pred ("++ show ex ++")"
+      Add ex ex'      -> "("++show ex ++" + " ++ show ex'++")"
+      Mul ex ex'      -> "("++ show ex ++ ")*("++ show ex'++")"
+      Not ex          -> "¬("++ show ex ++")"
+      Iszero ex       -> "iszero("++ show ex ++")"
+      And ex ex'      -> "("++ show ex ++") ∧ ("++ show ex'++")"
+      Or ex ex'       -> "("++ show ex ++") ∨ ("++ show ex'++")"
+      Lt ex ex'       -> "("++ show ex ++") < ("++ show ex'++")"
+      Gt ex ex'       -> "("++ show ex ++" > "++ show ex'++")"
+      Eq ex ex'       -> "("++ show ex ++" = "++ show ex'++")"
+      If ex ex' ex2   -> "if ("++ show ex ++") then ("++ show ex'++") else ("++ show ex2++")"
+      Let i ex  ex'   -> "let ("++ i ++"= ("++ show ex++") in ("++ show ex'++")"
+      App ex ex'      -> "("++ show ex ++") ("++ show ex'++")"
+      Raise ex        -> "raise ("++ show ex ++")"
+      Handle ex s ex' -> "handle ("++show ex++") with "++s++" => ("++show ex'++")"
 
 --1. (1 punto) Crea una instancia de la clase Show para los marcos de acuerdo a la sintaxis descrita en las notas del curso.
 
@@ -100,7 +99,6 @@ instance Show Frame where
         (AppFR a)     -> "Eq("++show a++", -)"
         RaiseF        -> "Raise(-)"
         (HandleF a b) -> "HandleF(-, "++a++"."++show b++")"
-
         
 -- 5. Extender la funcion frVars 
 frVars :: Expr -> [Identifier]
@@ -160,13 +158,23 @@ subst (Handle e1 x e2) (i,e)
 
 
 -- Defincion de pila de marcos
-data Stack = Empty | S Frame Stack deriving (Show, Eq)
+data Stack = Empty | S Frame Stack deriving (Eq)
 
+instance Show Stack where
+    show e = case e of
+                Empty -> "⬚"
+                S f s -> show f++";"++show s
 
 --Definicion de los estados
 data State =  E Stack Expr -- P;⬚ > e
             | R Stack Expr -- P;⬚ < e
-            | P Stack Expr deriving (Show, Eq)-- P;⬚ << e 
+            | P Stack Expr deriving (Eq)-- P;⬚ << e 
+
+instance Show State where
+    show e = case e of
+                E s e -> show s++" ≻ "++show e
+                R s e -> show s++" ≺ "++show e
+                P s e -> show s++" ≪ "++show e
 
 --La siguiente función auxiliar servirá para definir las interacciones rise <-> handle:
 isHandleF :: Frame -> Bool
@@ -316,26 +324,28 @@ eval1 (R (S RaiseF s) (V v))    = P s (Raise (V v))---------Caso significativo
 eval1 (R (S RaiseF s) (Fn x e)) = P s (Raise (Fn x e))------Caso significativo
 eval1 (R s (Raise e))           = R (S RaiseF s) e----------Caso significativo
 --------------------------Manejo de error handle------------------------------
-eval1 (R (S (HandleF x e2) s) (I n))    = R s (I n)---------Caso significativo
-eval1 (R (S (HandleF x e2) s) (B b))    = R s (B b)---------Caso significativo
-eval1 (R (S (HandleF x e2) s) (V v))    = R s (V v)---------Caso significativo
-eval1 (R (S (HandleF x e2) s) (Fn y e)) = R s (Fn y e)------Caso significativo
+eval1 (R (S (HandleF x e2) s) (I n))    = R s (I n)--------------------------Caso significativo
+eval1 (R (S (HandleF x e2) s) (B b))    = R s (B b)--------------------------Caso significativo
+eval1 (R (S (HandleF x e2) s) (V v))    = R s (V v)--------------------------Caso significativo
+eval1 (R (S (HandleF x e2) s) (Fn y e)) = R s (Fn y e)-----------------------Caso significativo
+eval1 (E s (Handle e1 x e2))            = E (S (HandleF x e2) s) e1----------Caso significativo
 ------------------------Interacción rise <-> handle----------------------------------------------------
-eval1 (P (S (HandleF x e) p) (Raise (I n)))      = E p (subst e (x, I n))
-eval1 (P (S (HandleF x e) p) (Raise (B b)))      = E p (subst e (x, B b))
-eval1 (P (S (HandleF x e) p) (Raise (V v)))      = E p (subst e (x, V v))
-eval1 (P (S (HandleF x e1) p) (Raise (Fn y e2))) = E p (subst e1 (x, Fn y e2))
-eval1 (P (S m p) (Raise (I n)))    = if isHandleF m then P p (Raise (I n)) else P (S m p) (Raise (I n))       -- Caso significativo
-eval1 (P (S m p) (Raise (B b)))    = if isHandleF m then P p (Raise (B b)) else P (S m p) (Raise (B b))       -- Caso significativo
-eval1 (P (S m p) (Raise (V v)))    = if isHandleF m then P p (Raise (V v)) else P (S m p) (Raise (V v))       -- Caso significativo
-eval1 (P (S m p) (Raise (Fn x e))) = if isHandleF m then P p (Raise (Fn x e)) else P (S m p) (Raise (Fn x e)) -- Caso significativo
+eval1 (P (S m p) (Raise (I n)))    = if isHandleF m then P p (Raise (I n)) else P (S m p) (Raise (I n))---------Caso significativo
+eval1 (P (S m p) (Raise (B b)))    = if isHandleF m then P p (Raise (B b)) else P (S m p) (Raise (B b))---------Caso significativo
+eval1 (P (S m p) (Raise (V v)))    = if isHandleF m then P p (Raise (V v)) else P (S m p) (Raise (V v))---------Caso significativo
+eval1 (P (S m p) (Raise (Fn x e))) = if isHandleF m then P p (Raise (Fn x e)) else P (S m p) (Raise (Fn x e))---Caso significativo
+eval1 (P (S (HandleF x e) p) (Raise (I n)))      = E p (subst e (x, I n))-------Caso significativo
+eval1 (P (S (HandleF x e) p) (Raise (B b)))      = E p (subst e (x, B b))-------Caso significativo
+eval1 (P (S (HandleF x e) p) (Raise (V v)))      = E p (subst e (x, V v))-------Caso significativo
+eval1 (P (S (HandleF x e1) p) (Raise (Fn y e2))) = E p (subst e1 (x, Fn y e2))--Caso significativo
+
 eval1 state = state -- <-- Finalmente se define que cuando se llegue a un estado final o un estado bloqueado simplemente
                          --eval1 se comporta como la identidad, ¡esto será crucial para la definición de evals!
 
 --Ejemplos:
 
---      eval1 (E Empty (Add (I 2) (I 3))) = E (S (AddFL (I 3)) Empty) (I 2) = E (S Add(-, I(3)) Empty) I(2)
---eval1 (E (S (AddFL (I 3)) Empty) (I 2)) = R (S (AddFL (I 3)) Empty) (I 2) = R (S Add(-, I(3)) Empty) I(2)
+--      eval1 (E Empty (Add (I 2) (I 3))) = E (S (AddFL (I 3)) Empty) (I 2) = Add(-, 3);⬚ ≻ 2 
+--eval1 (E (S (AddFL (I 3)) Empty) (I 2)) = R (S (AddFL (I 3)) Empty) (I 2) = Add(-, 3);⬚ ≺ 2
 
 --Función que auxiliar que ayuda a probar la forma de cada iteración de la función eval1:
 
@@ -448,12 +458,12 @@ verif (R (S (IfF e1 e2) s) (Fn x e)) = error "[If] Espera un booleano en su prim
 verif (R (S (AppFL e2) s) (I i))  = error "[App] Espera una función Fn en su primer argumento"
 verif (R (S (AppFL e2) s) (B b))  = error "[App] Espera una función Fn en su primer argumento"
 verif (R (S (AppFL e2) s) (V v))  = error "[App] Espera una función Fn en su primer argumento"
-------------Estados finales-------------
-verif (R Empty (I n))    = R Empty (I n) 
-verif (R Empty (B b))    = R Empty (B b) 
-verif (R Empty (Fn x e)) = R Empty (Fn x e) 
-------Filtro por si una pila termina no siendo vacía o cualquier otra anomalía-----
-verif e = error "Algo salió mal D:"
+------------Estados finales inválidos-------------
+verif (R s (I n))    = if s == Empty then R s (I n) else error "Aún hay cómputos pendientes, algo salió mal"
+verif (R s (B b))    = if s == Empty then R s (B b) else error "Aún hay cómputos pendientes, algo salió mal" 
+verif (R s (Fn x e)) = if s == Empty then R s (Fn x e) else error "Aún hay cómputos pendientes, algo salió mal"
+------La expresión pasó el test de anomalías-----
+verif e = e
 
 --Así definimos la función evale como:
 
@@ -463,11 +473,10 @@ evale e = auxevale (verif (evals (E Empty e)))
 --Ejemplos:
 
 --                  evale (Add (Mul (I 2) (I 6)) (B True)) *** Exception : [ Add ] Expects two Integer
--- evale (Or (Eq (Add (I 0) (I 0)) (I 0)) (Eq (I 1) (I 10))) = B True
+-- evale (Or (Eq (Add (I 0) (I 0)) (I 0)) (Eq (I 1) (I 10))) = B True = True
 
 
---Manejo de excepciones -- <-- Solo falta esto
-
+--Manejo de excepciones 
 
 --5. (1 punto) Extiende las funciones frVars y subst para los nuevos constructores agregados. 
 
@@ -482,8 +491,38 @@ evale e = auxevale (verif (evals (E Empty e)))
 s :: State
 s =  P (S (HandleF "x" (V "x")) Empty) (Raise (B False))
 
--- eval1 s = E Empty (B False)
+-- eval1 s = E Empty (B False) = ⬚ ≻ False
 
---------------------------------------
---stack ghci src/Practica4.MaquinaK.hs 
---------------------------------------
+--------------------E X T R A----------------------- 
+
+{-E1. (2 puntos) Crea una instancia de la clase Show 
+para las expresiones de acuerdo a la sintaxis concreta 
+descrita en las notas del curso.-}
+
+-- Hecho ✔
+
+{-
+E2. (1 punto) Escribe un programa sencillo que maneje excepciones y evalualo utilizando evale, adjunta
+una screenshot de como la consola muestra el programa y el resultado, este programa debe verse con la 
+sintaxis concreta que simulaste en el punto anterior. (Pueden escribirlo directamente en consola).-}
+
+--Consideremos la siguiente expresión:
+
+e' :: Expr
+e' = Handle (Add (I 11) (Add (I 980) (I 9))) "x" (B False)
+
+--Así, vemos que e' en la consola se muestra como:
+
+--e' = handle ((11 + (980 + 9))) with x => (False)
+
+--y
+
+-- evale e' = 1000
+
+-------
+--FIN--
+-------
+
+----------------------------------------
+--stack ghci src/Practica4.MaquinaK.hs-- 
+----------------------------------------
